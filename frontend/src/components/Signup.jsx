@@ -1,26 +1,47 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import axios from "axios";
 import { FaUser, FaEnvelope, FaLock } from "react-icons/fa";
 
 function Signup() {
   const [formData, setFormData] = useState({
-    fullname: "",
+    fullName: "",
+    username: "",
     email: "",
     password: "",
   });
+  const [avatar, setAvatar] = useState(null);
+  
+  const handleAvatarChange = async (e) => {
+  setAvatar(e.target.files[0]); 
+ };
 
-  const handleChange = (e) => {
+  const handleChange = async (e) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-
-    console.log(formData);
+    const payload  = new FormData();
+    payload.append("fullName", formData.fullName);
+    payload.append("email", formData.email);
+    payload.append("password", formData.password);
+    payload.append("username", formData.username);
+    if (avatar) {
+      payload.append("avatar", avatar);
+    }
+    try {
+        const res = await axios.post("http://localhost:5002/users/signup", payload,
+          { withCredentials: true, headers: { "Content-Type": "multipart/form-data" } }
+        );
+        console.log(res.data);
+    } catch (error) {
+        console.log(error.response?.data?.message || "Signup failed");
+    }
   };
 
   return (
@@ -63,8 +84,8 @@ function Signup() {
 
             <input
               type="text"
-              name="fullname"
-              value={formData.fullname}
+              name="fullName"
+              value={formData.fullName}
               onChange={handleChange}
               placeholder="Full Name"
               className="w-full pl-12 pr-4 py-3 rounded-xl bg-white/10 border border-gray-600 text-white placeholder-gray-400 outline-none focus:ring-2 focus:ring-cyan-400"
@@ -86,6 +107,30 @@ function Signup() {
               required
             />
           </div>
+          {/* Username */}
+<div className="relative">
+  <FaUser className="absolute top-4 left-4 text-gray-400" />
+  <input
+    type="text"
+    name="username"
+    value={formData.username}
+    onChange={handleChange}
+    placeholder="Username"
+    className="w-full pl-12 pr-4 py-3 rounded-xl bg-white/10 border border-gray-600 text-white placeholder-gray-400 outline-none focus:ring-2 focus:ring-cyan-400"
+    required
+  />
+</div>
+
+{/* Avatar */}
+<div className="relative">
+  <input
+    type="file"
+    accept="image/*"
+    onChange={handleAvatarChange}
+    className="w-full py-3 px-4 rounded-xl bg-white/10 border border-gray-600 text-gray-400"
+    
+  />
+</div>
 
           {/* Password */}
           <div className="relative">

@@ -46,25 +46,19 @@ const signup = asyncHandler(async (req, res) => {
   }
 
   // handle avatar upload
-  const avatarLocalPath = req.files?.avatar?.[0]?.path;
-
-  if (!avatarLocalPath) {
-    throw new ApiError(400, "Avatar file is required");
-  }
-
-  const avatar = await uploadOnCloudinary(avatarLocalPath);
-
-  if (!avatar) {
-    throw new ApiError(400, "Avatar upload failed, please try again");
-  }
+  let avatarUrl = `https://ui-avatars.com/api/?name=${fullName}&background=random&color=fff&bold=true`;
+  if(req.files?.avatar?.[0]?.path){
+    const upload = await uploadOnCloudinary(req.files.avatar[0].path);
+    if (uploaded?.url) avatarUrl = uploaded.url;
+  };
 
   // create user
   const user = await User.create({
     fullName,
     username,
-    avatar: avatar.url,
     email,
     password,
+    avatar: avatarUrl,
   });
 
   const createdUser = await User.findById(user._id).select(

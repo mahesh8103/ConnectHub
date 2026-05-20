@@ -1,25 +1,35 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link ,useNavigate} from "react-router-dom";
 import { motion } from "framer-motion";
 import { FaEnvelope, FaLock } from "react-icons/fa";
+import axios from "axios";  
+import useAuth from "../context/useAuth";
 
 function Login() {
+    const { setAuthUser } = useAuth();
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: "",
     password: "",
   });
 
-  const handleChange = (e) => {
+  const handleChange = async(e) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-
-    console.log(formData);
+       try {
+         const res = await axios.post("http://localhost:5002/users/login", formData, { withCredentials: true });
+         console.log(res.data);
+         setAuthUser(res.data.data.user); 
+         navigate("/chat");   // forward to chat page after successful login
+       } catch (error) {
+          console.log(error.response?.data?.message || "Login failed");
+       }
   };
 
   return (
