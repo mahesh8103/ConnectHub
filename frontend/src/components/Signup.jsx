@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link ,useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import axios from "axios";
 import { FaUser, FaEnvelope, FaLock } from "react-icons/fa";
 
 function Signup() {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     fullName: "",
     username: "",
@@ -39,6 +40,7 @@ function Signup() {
           { withCredentials: true, headers: { "Content-Type": "multipart/form-data" } }
         );
         console.log(res.data);
+        navigate("/login");   // forward to login page after successful signup
     } catch (error) {
         console.log(error.response?.data?.message || "Signup failed");
     }

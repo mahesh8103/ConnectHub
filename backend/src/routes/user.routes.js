@@ -8,6 +8,7 @@ import {
   getCurrentUser,
   updateAccountDetails,
   updateUserAvatar,
+  getAllUsers,
 } from "../controllers/user.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -39,5 +40,7 @@ router.route("/updateAvatar").patch(
   upload.fields([{ name: "avatar", maxCount: 1 }]),
   updateUserAvatar
 );
+
+router.route("/getAllUsers").get(verifyJWT, getAllUsers);
 
 export default router;

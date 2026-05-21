@@ -10,6 +10,8 @@ app.use(
 );
 import cookieParser from "cookie-parser";
 import userRouter from "./routes/user.routes.js";
+import messageRouter from "./routes/message.routes.js";
+
 
 
 
@@ -25,5 +27,7 @@ app.get("/", (req, res) => {
 
 // routes
 app.use("/users", userRouter);
+app.use("/messages", messageRouter);
+
 
 export { app };

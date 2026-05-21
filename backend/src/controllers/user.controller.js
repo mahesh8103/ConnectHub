@@ -297,6 +297,17 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiResponse(200, user, "Avatar updated successfully"));
 });
+
+//-----------------getAllUsers---------------------------------
+
+const getAllUsers = asyncHandler(async (req, res) =>{
+  const loggedInUserId = req.user._id;
+  const users = await User.find({_id: {$ne: loggedInUserId}})
+  .select("-password -refreshToken")
+  .lean();      // it will return plain js objects instead of mongoose documents, so it will be faster and we don't need mongoose document methods for this
+  return res.status(200).json(new ApiResponse(200, users, "Users fetched successfully"));
+
+})
 // ─── Exports ───────────────────────────────────────────────────────────────────
 
 
@@ -310,4 +321,5 @@ export {
   getCurrentUser,
   updateAccountDetails,
   updateUserAvatar,
+  getAllUsers,
 };
