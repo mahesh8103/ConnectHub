@@ -3,7 +3,7 @@ import axios from 'axios'
 import Message from './message'
 import useAuth from '../../context/useAuth'
 
-function Messages() {
+function Messages({ refreshKey }) {
   const { selectedUser } = useAuth();
   const [messages, setMessages] = useState([]);
 
@@ -23,7 +23,7 @@ function Messages() {
     };
 
     fetchMessages();
-  }, [selectedUser]); // re-runs every time selectedUser changes
+  }, [selectedUser, refreshKey]); // re-runs every time selectedUser or refreshKey changes
 
   
   return (
