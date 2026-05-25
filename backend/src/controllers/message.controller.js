@@ -7,16 +7,22 @@ import { getReceiverSocketId, io } from "../socket/socket.js";
 // Get messages between logged in user and selected user
 const getMessages = asyncHandler(async (req, res) => {
   const { id: receiverId } = req.params;
-  const senderId = req.user._id;          
+  const senderId = req.user._id;    
+  const limit = 20;
+  const skip = parseInt(req.query.skip) || 0;      
 
   const messages = await Message.find({
     $or: [
       { senderId, receiverId },           // messages I sent to them
       { senderId: receiverId, receiverId: senderId }, // messages they sent to me
     ]
-  }).lean();
+  })
+  .sort({ createdAt: -1 }) 
+  .limit(limit)
+  .skip(skip)
+  .lean();
 
-  return res.status(200).json(new ApiResponse(200, messages, "Messages fetched successfully"));
+  return res.status(200).json(new ApiResponse(200, messages.reverse(), "Messages fetched successfully"));
 });
 
 

@@ -25,9 +25,9 @@ function Right() {
   return (
     <div className="flex-1 h-screen flex flex-col bg-gray-950">
       <Chatuser />
-      <div className="flex-1 overflow-y-auto px-6 py-4 scrollbar-thin scrollbar-thumb-gray-800">
-        <Messages refreshKey={refreshKey} />
-      </div>
+      <div className="flex-1 overflow-hidden">
+            <Messages refreshKey={refreshKey} />
+           </div>
       <div className="px-4 py-4 border-t border-gray-800/60 bg-gray-950">
         <Type onMessageSent={handleMessageSent} />
       </div>
