@@ -17,16 +17,16 @@ function Messages({ refreshKey }) {
 
   const bottomRef = useRef(null);
   const containerRef = useRef(null);
-  const isFetchingRef = useRef(false); // blocks duplicate scroll fetches
+  const isFetchingRef = useRef(false);
+  const prevScrollHeightRef = useRef(0); 
 
-  // scrollToBottom wrapped in useCallback so it doesnt change on every render
   const scrollToBottom = useCallback((behavior = "instant") => {
     requestAnimationFrame(() => {
       bottomRef.current?.scrollIntoView({ behavior });
     });
-  }, []); // no deps — this function never changes
+  }, []);
 
-  // initial fetch when user selected or message sent
+  
   useEffect(() => {
     if (!selectedUser) return;
 
@@ -43,34 +43,40 @@ function Messages({ refreshKey }) {
         );
         const data = res.data.data;
         setMessages(data);
-
-        // if returned less than limit, no older messages exist
         if (data.length < LIMIT) setHasMore(false);
 
       } catch (error) {
         console.log(error.response?.data?.message || "Failed to fetch messages");
       } finally {
-        setIsInitialLoad(false); // mark initial load done
+        setIsInitialLoad(false);
       }
     };
 
     fetchMessages();
   }, [selectedUser, refreshKey]);
 
-  // scroll to bottom after initial load completes
+  // scroll to bottom after initial load
   useEffect(() => {
     if (!isInitialLoad && messages.length > 0) {
       scrollToBottom("instant");
     }
-  }, [isInitialLoad, messages.length, scrollToBottom]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInitialLoad]); 
 
-  // load older messages when user scrolls to very top
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || prevScrollHeightRef.current === 0) return;
+    container.scrollTop = container.scrollHeight - prevScrollHeightRef.current;
+    prevScrollHeightRef.current = 0; 
+  });
+
   const handleScroll = useCallback(async () => {
     const container = containerRef.current;
     if (!container) return;
-    if (container.scrollTop > 0) return; // not at top
-    if (!hasMore) return; // no more messages
-    if (isFetchingRef.current) return; // already fetching
+    if (container.scrollTop > 0) return;
+    if (!hasMore) return;
+    if (isFetchingRef.current) return;
 
     isFetchingRef.current = true;
     setIsLoadingOlder(true);
@@ -86,40 +92,37 @@ function Messages({ refreshKey }) {
       const older = res.data.data;
 
       if (older.length < LIMIT) setHasMore(false);
-      if (older.length === 0) return;
+      if (older.length === 0) {
+        isFetchingRef.current = false;
+        setIsLoadingOlder(false);
+        return;
+      }
 
-      const oldScrollHeight = container.scrollHeight;
+      prevScrollHeightRef.current = container.scrollHeight;
 
-      setMessages(prev => [...older, ...prev]); // add older messages on top
+      setMessages(prev => [...older, ...prev]);
       setSkip(newSkip);
-
-      // restore scroll position after older messages added above
-      requestAnimationFrame(() => {
-        container.scrollTop = container.scrollHeight - oldScrollHeight;
-      });
 
     } catch (error) {
       console.log("Failed to load older messages", error.response?.data?.message || error.message);
-
     } finally {
       setIsLoadingOlder(false);
-      isFetchingRef.current = false; // allow next fetch
+      isFetchingRef.current = false;
     }
   }, [skip, hasMore, selectedUser]);
 
-  // real-time incoming message via socket
+  // real-time incoming message
   useEffect(() => {
     if (!socket) return;
 
     socket.on("newMessage", (newMessage) => {
-      // only add if from currently selected user
       if (newMessage.senderId === selectedUser?._id) {
         setMessages(prev => [...prev, newMessage]);
-        scrollToBottom("smooth"); // smooth scroll for new message
+        scrollToBottom("smooth");
       }
     });
 
-    return () => socket.off("newMessage"); // cleanup on unmount
+    return () => socket.off("newMessage");
   }, [socket, selectedUser, scrollToBottom]);
 
   // scroll to bottom when I send a message
@@ -135,34 +138,28 @@ function Messages({ refreshKey }) {
       onScroll={handleScroll}
       className="flex flex-col gap-1 h-full overflow-y-auto px-6 py-4 scrollbar-thin scrollbar-thumb-gray-800 scrollbar-track-transparent"
     >
-      {/* spinner shown while loading older messages */}
       {isLoadingOlder && (
         <div className="flex justify-center py-2">
           <div className="w-5 h-5 border-2 border-gray-600 border-t-violet-500 rounded-full animate-spin" />
         </div>
       )}
 
-      {/* shown when all older messages loaded */}
       {!hasMore && messages.length > 0 && (
         <p className="text-gray-700 text-xs text-center py-2">
           Start of conversation
         </p>
       )}
 
-      {/* empty state — no messages yet */}
       {messages.length === 0 && !isInitialLoad && (
         <p className="text-gray-500 text-sm text-center mt-4">
           No messages yet. Say hi! 👋
         </p>
       )}
-      
 
-      {/* render all messages */}
       {messages.map((msg) => (
         <Message key={msg._id} message={msg} />
       ))}
 
-      {/* invisible div at bottom — scroll target */}
       <div ref={bottomRef} />
     </div>
   )
