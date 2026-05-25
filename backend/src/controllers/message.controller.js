@@ -2,11 +2,12 @@ import { Message } from "../models/message.models.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import { getReceiverSocketId, io } from "../socket/socket.js";
 
 // Get messages between logged in user and selected user
 const getMessages = asyncHandler(async (req, res) => {
-  const { id: receiverId } = req.params;  // selected user's id from URL
-  const senderId = req.user._id;          // logged in user
+  const { id: receiverId } = req.params;
+  const senderId = req.user._id;          
 
   const messages = await Message.find({
     $or: [
@@ -18,7 +19,7 @@ const getMessages = asyncHandler(async (req, res) => {
   return res.status(200).json(new ApiResponse(200, messages, "Messages fetched successfully"));
 });
 
-// Send a message
+
 const sendMessage = asyncHandler(async (req, res) => {
   const { id: receiverId } = req.params;
   const senderId = req.user._id;
@@ -34,6 +35,10 @@ const sendMessage = asyncHandler(async (req, res) => {
     message,
   });
 
+  const receiverSocketId = getReceiverSocketId(receiverId);
+  if (receiverSocketId) {
+    io.to(receiverSocketId).emit("newMessage", newMessage);
+  }
   return res.status(201).json(new ApiResponse(201, newMessage, "Message sent successfully"));
 });
 

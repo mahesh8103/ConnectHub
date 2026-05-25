@@ -3,9 +3,11 @@ import axios from 'axios'
 import Message from './message'
 import useAuth from '../../context/useAuth'
 import { useRef } from 'react'
+import useSocket from '../../context/useSocket';
 
 function Messages({ refreshKey }) {
   const { selectedUser } = useAuth();
+  const { socket } = useSocket();
   const [messages, setMessages] = useState([]);
   const bottomRef = useRef(null);
 
@@ -27,10 +29,24 @@ function Messages({ refreshKey }) {
     fetchMessages();
   }, [selectedUser, refreshKey]); // re-runs every time selectedUser or refreshKey changes
 
+  // listen for real-time incoming messages via socket
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.on("newMessage", (newMessage) => {
+      if (newMessage.senderId === selectedUser?._id) {
+        setMessages((prev) => [...prev, newMessage]);
+      }
+    });
+    return () => socket.off("newMessage");
+  }, [socket, selectedUser]);
+
   //  scroll to bottom whenever messages change
   useEffect(() => {
+  setTimeout(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, 100); 
+}, [messages]);
 
   return (
     <div className="flex flex-col gap-3">

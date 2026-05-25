@@ -20,7 +20,7 @@ function Users() {
 
     fetchUsers();
   }, []); // [] = Without [], fetchUsers() would run every time the component re-renders — including after setUsers() is called — creating an infinite loop:
-                        // fetch → setUsers → re-render → fetch → setUsers → re-render → 💥
+                        // fetch → setUsers → re-render → fetch → setUsers → re-render → 
                         //The [] says: "Only run once, never again" — which is exactly what you want for initial data loading.
 
   return (
