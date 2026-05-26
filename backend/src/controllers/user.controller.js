@@ -49,7 +49,7 @@ const signup = asyncHandler(async (req, res) => {
   let avatarUrl = `https://ui-avatars.com/api/?name=${fullName}&background=random&color=fff&bold=true`;
   if(req.files?.avatar?.[0]?.path){
     const upload = await uploadOnCloudinary(req.files.avatar[0].path);
-    if (uploaded?.url) avatarUrl = uploaded.url;
+    if (upload?.url) avatarUrl = upload.url;
   };
 
   // create user

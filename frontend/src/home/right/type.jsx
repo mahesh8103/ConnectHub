@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { IoSend } from 'react-icons/io5'
 import axios from 'axios'
 import useAuth from '../../context/useAuth'
+import { toast } from 'react-toastify';
 
 function Type({ onMessageSent }) {
   const { selectedUser } = useAuth();
@@ -18,7 +19,7 @@ function Type({ onMessageSent }) {
       setMessage("");
       onMessageSent();
     } catch (error) {
-      console.log(error.response?.data?.message || "Failed to send message");
+      toast.error(error.response?.data?.message || "Failed to send message");
     }
   };
 

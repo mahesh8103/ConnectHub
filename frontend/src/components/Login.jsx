@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { FaEnvelope, FaLock } from "react-icons/fa";
 import axios from "axios";
 import useAuth from "../context/useAuth";
+import { toast } from 'react-toastify';
 
 function Login() {
   const { setAuthUser } = useAuth();
@@ -24,11 +25,11 @@ function Login() {
     e.preventDefault();
     try {
       const res = await axios.post("http://localhost:5002/users/login", formData, { withCredentials: true });
-      console.log(res.data);
+      toast.success("Welcome Back!");
       setAuthUser(res.data.data.user);
       navigate("/chat"); // forward to chat page after successful login
     } catch (error) {
-      console.log(error.response?.data?.message || "Login failed");
+      toast.error(error.response?.data?.message || "Login failed");
     }
   };
 

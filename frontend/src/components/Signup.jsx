@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import axios from "axios";
 import { FaUser, FaEnvelope, FaLock } from "react-icons/fa";
-
+import { toast } from 'react-toastify';
 function Signup() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -36,13 +36,13 @@ function Signup() {
       payload.append("avatar", avatar);
     }
     try {
-      const res = await axios.post("http://localhost:5002/users/signup", payload,
+       await axios.post("http://localhost:5002/users/signup", payload,
         { withCredentials: true, headers: { "Content-Type": "multipart/form-data" } }
       );
-      console.log(res.data);
+      toast.success("Account created! Please login.");
       navigate("/login"); // forward to login page after successful signup
     } catch (error) {
-      console.log(error.response?.data?.message || "Signup failed");
+      toast.error(error.response?.data?.message || "Signup failed");
     }
   };
 
