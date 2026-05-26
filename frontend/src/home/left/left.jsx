@@ -4,6 +4,7 @@ import Users from './users'
 import Logout from './logout'
 
 function Left() {
+  const [searchQuery, setSearchQuery] = React.useState("");
   return (
     <div className="w-[28%] h-screen bg-gray-950 text-gray-200 flex flex-col border-r border-gray-800/60">
       <div className="px-5 py-5 border-b border-gray-800/60">
@@ -11,11 +12,11 @@ function Left() {
           💬 ConnectHub
         </h1>
       </div>
-
-      <Search />
+       <Search searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
+      
 
       <div className="flex-1 overflow-y-auto py-2 scrollbar-thin scrollbar-thumb-gray-800">
-        <Users />
+        <Users searchQuery={searchQuery} />
       </div>
 
       <div className="p-3 border-t border-gray-800/60">
