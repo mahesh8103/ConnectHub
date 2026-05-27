@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { IoLogOutOutline } from 'react-icons/io5'
 import useAuth from "../../context/useAuth";
 import { toast } from 'react-toastify';
+import Profile from "../../components/Profile";
 
 function Logout() {
   const navigate = useNavigate();
@@ -42,6 +43,7 @@ function Logout() {
         <img
           src={authUser?.avatar}
           alt={authUser?.fullName}
+          onClick={() => navigate("/profile")}
           className="
             relative w-10 h-10 rounded-full object-cover
             ring-2 ring-violet-500/60

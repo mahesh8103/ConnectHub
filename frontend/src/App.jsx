@@ -7,6 +7,7 @@ import Right from './home/right/right'
 import PublicRoute from './components/PublicRoute';
 import ProtectedRoute from './components/ProtectedRoute';
 import useAuth from './context/useAuth';
+import Profile from './components/Profile';
 
 function App() {
   const { authUser } = useAuth();
@@ -21,10 +22,10 @@ function App() {
       <Route path="/" element={<PublicRoute><Signup /></PublicRoute>} />
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
       <Route
-  path="/chat"
-  element={
-    <ProtectedRoute>
-      <div className="flex h-screen bg-gradient-to-br from-[#0f172a] via-[#020617] to-black text-white overflow-hidden">
+            path="/chat"
+             element={
+              <ProtectedRoute>
+                 <div className="flex h-screen bg-gradient-to-br from-[#0f172a] via-[#020617] to-black text-white overflow-hidden">
 
         {/* LEFT SIDEBAR */}
         <div
@@ -55,7 +56,8 @@ function App() {
       </div>
     </ProtectedRoute>
   }
-/>
+/>   
+     <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
     </Routes>
   )
 }
