@@ -3,8 +3,9 @@ import Chatuser from './chatuser'
 import Messages from './messages'
 import Type from './type'
 import useAuth from '../../context/useAuth'
+import { IoArrowBack } from 'react-icons/io5'
 
-function Right() {
+function Right({ onBack}) {
   const { selectedUser } = useAuth();
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -24,6 +25,15 @@ function Right() {
 
   return (
     <div className="flex-1 h-screen flex flex-col bg-gray-950">
+       {/*  NEW — back button only on mobile, hidden on desktop (md:hidden) */}
+      <div className="flex items-center gap-2 md:hidden px-4 pt-3">
+        <button
+          onClick={onBack}
+          className="text-gray-400 hover:text-white transition-colors"
+        >
+          <IoArrowBack size={22} />
+        </button>
+      </div>
       <Chatuser />
       <div className="flex-1 overflow-hidden">
             <Messages refreshKey={refreshKey} />

@@ -2,16 +2,21 @@ import React from 'react'
 import useAuth from '../../context/useAuth'
 import useSocket from '../../context/useSocket';
 
-function User({ user }) {
+function User({ user , unreadCount, onUserSelect }) {
   const { selectedUser, setSelectedUser } = useAuth();
   const { onlineUsers } = useSocket(); 
 
   const isOnline = onlineUsers.includes(user._id);
   const isSelected = selectedUser?._id === user._id;
 
+  const handleClick = () =>{
+    setSelectedUser(user);
+    onUserSelect?.(); 
+  }
+
   return (
     <div
-      onClick={() => setSelectedUser(user)}
+      onClick={handleClick}
       className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer
         transition-[background-color,border-color] duration-150 ease-in-out
         border
@@ -30,13 +35,21 @@ function User({ user }) {
           ${isOnline ? 'bg-emerald-400' : 'bg-gray-600'}`}
         />
       </div>
-
-      <div className="flex flex-col min-w-0">
+       
+      <div className="flex flex-col min-w-0 ">
         <h1 className="text-sm font-semibold text-gray-100">{user.fullName}</h1>
         <span className={`text-xs truncate ${isOnline ? 'text-emerald-400' : 'text-gray-500'}`}>
           {isOnline ? 'online' : 'offline'}
         </span>
       </div>
+       {/* // to show unread message count badge */}
+       {unreadCount > 0 && (
+        <div className="flex-shrink-0 w-5 h-5 bg-violet-500 rounded-full flex items-center justify-center">
+          <span className="text-[10px] font-bold text-white">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        </div>
+      )}
     </div>
   )
 }

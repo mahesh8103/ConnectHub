@@ -1,10 +1,16 @@
 import React, { useEffect, useState } from 'react'
 import axios from 'axios'
 import User from './user'
+import useSocket from '../../context/useSocket.js';
+import useAuth from '../../context/useAuth.js';
 
-function Users({ searchQuery }) {
+function Users({ searchQuery , onUserSelect }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [unreadCounts, setUnreadCounts] = useState({}); // { userId: count }
+  const { socket } = useSocket();
+  const { selectedUser } = useAuth();
+
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -26,6 +32,30 @@ function Users({ searchQuery }) {
   }, []); // [] = Without [], fetchUsers() would run every time the component re-renders — including after setUsers() is called — creating an infinite loop:
                         // fetch → setUsers → re-render → fetch → setUsers → re-render → 
                         //The [] says: "Only run once, never again" — which is exactly what you want for initial data loading.
+
+    useEffect(()=>{
+      if(!socket) return;
+      socket.on("newMessage",(newMessage)=>{
+        if(newMessage.senderId!== selectedUser?._Id){
+          setUnreadCounts(prev => ({
+            ...prev,
+            [newMessage.senderId]: (prev[newMessage.senderId] || 0) + 1
+          }));
+        }
+      })
+      return ()=> {
+        socket.off("newMessage");
+      }
+    },[socket, selectedUser])
+
+    useEffect(()=>{
+      if (selectedUser) {
+        setUnreadCounts(prev => ({
+          ...prev,
+          [selectedUser._id]: 0
+        }));
+      }
+    }, [selectedUser])
 
     // filter users based on searchQuery — checks fullName and username
   const filteredUsers = users.filter((user) => {
@@ -67,7 +97,12 @@ function Users({ searchQuery }) {
       )}
 
       {filteredUsers.map((user) => (
-        <User key={user._id} user={user} />
+        <User 
+        key={user._id} 
+        user={user} 
+        onUserSelect = {onUserSelect}
+        unreadCount={unreadCounts[user._id] || 0}
+         />
       ))}
     </div>
   )

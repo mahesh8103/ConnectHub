@@ -2,15 +2,19 @@ import React, { useState } from 'react'
 import { IoSend } from 'react-icons/io5'
 import axios from 'axios'
 import useAuth from '../../context/useAuth'
+import useSocket from '../../context/useSocket.js'
 import { toast } from 'react-toastify';
 
 function Type({ onMessageSent }) {
   const { selectedUser } = useAuth();
+  const { socket } = useSocket();  
   const [message, setMessage] = useState("");
+  const typingTimeoutRef = React.useRef(null);
 
   const handleSend = async () => {
     if (!message.trim()) return;
     try {
+      socket?.emit("stopTyping", { receiverId: selectedUser._id });
       await axios.post(
         `http://localhost:5002/messages/${selectedUser._id}`,
         { message },
@@ -27,12 +31,22 @@ function Type({ onMessageSent }) {
     if (e.key === "Enter") handleSend();
   };
 
+  const handleTyping = (e) => {
+    setMessage(e.target.value);
+    socket?.emit("typing", { receiverId: selectedUser._id });
+    
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      socket?.emit("stopTyping", { receiverId: selectedUser._id });
+    }, 800);
+  };
+
   return (
     <div className="flex items-center gap-3 px-2">
       <input
         type="text"
         value={message}
-        onChange={(e) => setMessage(e.target.value)}
+        onChange={handleTyping}
         onKeyPress={handleKeyPress}
         placeholder="Type a message..."
         className="flex-1 px-5 py-3 rounded-full bg-gray-800/80 border border-gray-700/60

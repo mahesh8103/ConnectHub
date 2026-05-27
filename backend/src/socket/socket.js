@@ -46,6 +46,21 @@ io.on("connection", (socket) => {
   if (userId) userSocketMap[userId] = socket.id;
 
   io.emit("getOnlineUsers", Object.keys(userSocketMap));
+  // typing indicator 
+
+  socket.on("typing",({ receiverId })=>{
+    const receiverSocketId = getReceiverSocketId(receiverId);
+    if(receiverSocketId){
+      io.to(receiverSocketId).emit("userTyping", { senderId: userId });
+    }
+  })
+
+  socket.on("stopTyping",({ receiverId })=>{
+        const receiverSocketId = getReceiverSocketId(receiverId);
+        if(receiverSocketId){
+          io.to(receiverSocketId).emit("userStopTyping", { senderId: userId });
+        }
+  })
 
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
