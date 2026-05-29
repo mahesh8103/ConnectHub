@@ -7,6 +7,6 @@ const router = Router();
 
 router.route("/:id").get(verifyJWT, getMessages);
 router.route("/:id").post(verifyJWT, upload.single("image"), sendMessage);
-router.route("/:id/seen").patch(verifyJWT, markMessagesSeen);
+router.route("/:id/seen").post(verifyJWT, markMessagesSeen);
 
 export default router;

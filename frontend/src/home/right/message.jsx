@@ -1,9 +1,11 @@
 import React from 'react'
 import useAuth from '../../context/useAuth'
+import useTheme from '../../context/useTheme'
 import { IoCheckmark, IoCheckmarkDone } from 'react-icons/io5'
 
 function Message({ message }) {
   const { authUser } = useAuth();
+  const { isDark } = useTheme();
   const isMine = message.senderId.toString() === authUser?._id.toString();
 
   const formatTime = (timestamp) => {
@@ -19,8 +21,12 @@ function Message({ message }) {
     "relative inline-flex items-end gap-1.5 max-w-[65%] text-sm",
     isImageOnly ? "overflow-hidden rounded-2xl" : "px-3 py-2",
     isMine
-      ? "bg-gradient-to-br from-violet-600 to-violet-700 text-white rounded-2xl rounded-br-sm shadow-[0_2px_12px_rgba(139,92,246,0.35)]"
-      : "bg-gray-800/80 text-gray-100 rounded-2xl rounded-bl-sm border border-white/[0.06] shadow-[0_2px_8px_rgba(0,0,0,0.3)]"
+      ? isDark
+        ? "bg-gradient-to-br from-violet-600 to-indigo-700 text-white rounded-2xl rounded-br-sm shadow-[0_2px_16px_rgba(109,40,217,0.4)]"
+        : "bg-gradient-to-br from-indigo-500 to-violet-600 text-white rounded-2xl rounded-br-sm shadow-[0_2px_12px_rgba(99,102,241,0.35)]"
+      : isDark
+        ? "bg-[#1a1a2e]/90 text-gray-100 rounded-2xl rounded-bl-sm border border-white/[0.06] shadow-[0_2px_8px_rgba(0,0,0,0.3)]"
+        : "bg-white text-gray-800 rounded-2xl rounded-bl-sm border border-indigo-100 shadow-[0_2px_8px_rgba(99,102,241,0.10)]"
   ].join(" ");
 
   const imgClass = "max-w-full cursor-pointer hover:opacity-95 transition-opacity block " +
@@ -29,11 +35,11 @@ function Message({ message }) {
   const renderTick = () => {
     if (!isMine) return null;
     if (message.status === "seen") {
-      return <IoCheckmarkDone size={14} className="text-blue-400 flex-shrink-0" />;
+      return <IoCheckmarkDone size={15} className="text-green-500 flex-shrink-0" />;
     } else if (message.status === "delivered") {
-      return <IoCheckmarkDone size={14} className="text-white/50 flex-shrink-0" />;
+      return <IoCheckmarkDone size={15} className="text-white/40 flex-shrink-0" />;
     } else {
-      return <IoCheckmark size={14} className="text-white/50 flex-shrink-0" />;
+      return <IoCheckmark size={15} className="text-white/40 flex-shrink-0" />;
     }
   };
 
@@ -63,7 +69,7 @@ function Message({ message }) {
           ${isImageOnly ? 'px-2 pb-1' : ''}`}
         >
           <span className={`text-[9px] leading-none
-            ${isMine ? 'text-white/40' : 'text-gray-600'}`}
+            ${isMine ? 'text-white/40' : isDark ? 'text-gray-600' : 'text-gray-400'}`}
           >
             {formatTime(message.createdAt)}
           </span>

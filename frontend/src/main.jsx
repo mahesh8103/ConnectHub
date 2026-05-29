@@ -7,11 +7,13 @@ import SocketProvider from './context/SocketProvider';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { BrowserRouter } from "react-router-dom";
+import ThemeProvider from './context/ThemeProvider'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <BrowserRouter>
     <AuthProvider>
       <SocketProvider>
+        <ThemeProvider>
         <App />
         <ToastContainer
   position="top-right"
@@ -28,7 +30,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     borderRadius: '12px',
     fontSize: '14px',
   }}
-/>
+/>     </ThemeProvider>
       </SocketProvider>
     </AuthProvider>
   </BrowserRouter>

@@ -28,7 +28,7 @@ const getMessages = asyncHandler(async (req, res) => {
     );
     const senderSocketId = getReceiverSocketId(receiverId);
     if(senderSocketId){
-      io.to(senderSocketId).emit("messageDelivered", { to : senderId });
+      io.to(senderSocketId).emit("messagesDelivered", { to : senderId });
     }
 
   return res.status(200).json(new ApiResponse(200, messages.reverse(), "Messages fetched successfully"));
@@ -59,7 +59,7 @@ const sendMessage = asyncHandler(async (req, res) => {
 
   const receiverSocketId = getReceiverSocketId(receiverId);
   if (receiverSocketId) {
-    await Message.findByIdAndUpdate(newMessage._id, { status: "delivered" }, { new: true });
+    await Message.findByIdAndUpdate(newMessage._id, { status: "delivered" });
     newMessage.status = "delivered"; // update status before sending to receiver
     io.to(receiverSocketId).emit("newMessage", newMessage);
   }
@@ -78,7 +78,7 @@ const markMessagesSeen = asyncHandler(async (req, res) => {
 
   const senderSocketId = getReceiverSocketId(senderId);
   if (senderSocketId) {
-    io.to(senderSocketId).emit("messageSeen", { by: receiverId });
+    io.to(senderSocketId).emit("messagesSeen", { by: receiverId });
   }
 
   return res.status(200).json(new ApiResponse(200, {}, "Messages marked as seen successfully"));

@@ -3,15 +3,15 @@ import axios from 'axios'
 import User from './user'
 import useSocket from '../../context/useSocket'
 import useAuth from '../../context/useAuth'
-
+import useTheme from '../../context/useTheme'
 function Users({ searchQuery, onUserSelect }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [unreadCounts, setUnreadCounts] = useState({});
   const { socket } = useSocket();
   const { selectedUser } = useAuth();
+  const { isDark } = useTheme();
 
-  // this fixes mobile unread count issue — stale closure was causing it
   const selectedUserRef = useRef(selectedUser);
   useEffect(() => {
     selectedUserRef.current = selectedUser;
@@ -34,13 +34,11 @@ function Users({ searchQuery, onUserSelect }) {
     fetchUsers();
   }, []);
 
-  // fixes mobile unread count not updating
   useEffect(() => {
     if (!socket) return;
 
     const handleNewMessage = (newMessage) => {
       const currentSelected = selectedUserRef.current;
-      // only count if NOT from currently open chat
       if (newMessage.senderId !== currentSelected?._id) {
         setUnreadCounts(prev => ({
           ...prev,
@@ -51,9 +49,8 @@ function Users({ searchQuery, onUserSelect }) {
 
     socket.on("newMessage", handleNewMessage);
     return () => socket.off("newMessage", handleNewMessage);
-  }, [socket]); // no selectedUser in deps — using ref instead
+  }, [socket]);
 
-  // clear unread when user selected
   useEffect(() => {
     if (selectedUser) {
       setUnreadCounts(prev => ({ ...prev, [selectedUser._id]: 0 }));
@@ -74,10 +71,13 @@ function Users({ searchQuery, onUserSelect }) {
       <div className="flex flex-col gap-2 px-2 py-2">
         {[...Array(6)].map((_, i) => (
           <div key={i} className="flex items-center gap-3 p-3 rounded-xl">
-            <div className="w-10 h-10 rounded-full bg-gray-800 animate-pulse flex-shrink-0" />
+            <div className={`w-10 h-10 rounded-full animate-pulse flex-shrink-0
+              ${isDark ? 'bg-[#1a1a2e]' : 'bg-indigo-100'}`} />
             <div className="flex flex-col gap-2 flex-1">
-              <div className="h-3 bg-gray-800 rounded animate-pulse w-28" />
-              <div className="h-2 bg-gray-800 rounded animate-pulse w-16" />
+              <div className={`h-3 rounded animate-pulse w-28
+                ${isDark ? 'bg-[#1a1a2e]' : 'bg-indigo-100'}`} />
+              <div className={`h-2 rounded animate-pulse w-16
+                ${isDark ? 'bg-[#1a1a2e]' : 'bg-indigo-100'}`} />
             </div>
           </div>
         ))}
@@ -89,7 +89,7 @@ function Users({ searchQuery, onUserSelect }) {
     <div className="flex flex-col gap-1 px-2">
       {filteredUsers.length === 0 && (
         <div className="flex flex-col items-center justify-center py-8 gap-2">
-          <p className="text-gray-600 text-sm">
+          <p className={`text-sm ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
             {searchQuery ? `No users found for "${searchQuery}"` : "No users found"}
           </p>
         </div>

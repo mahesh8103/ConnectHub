@@ -3,10 +3,12 @@ import Chatuser from './chatuser'
 import Messages from './messages'
 import Type from './type'
 import useAuth from '../../context/useAuth'
+import useTheme from '../../context/useTheme'
 import { IoArrowBack } from 'react-icons/io5'
 
-function Right({ onBack}) {
+function Right({ onBack }) {
   const { selectedUser } = useAuth();
+  const { isDark } = useTheme();
   const [refreshKey, setRefreshKey] = useState(0);
 
   const handleMessageSent = useCallback(() => {
@@ -15,30 +17,40 @@ function Right({ onBack}) {
 
   if (!selectedUser) {
     return (
-      <div className="flex-1 h-screen flex flex-col items-center justify-center bg-gray-950">
+      <div className={`flex-1 h-screen flex flex-col items-center justify-center transition-colors duration-300
+        ${isDark ? 'bg-[#0f0f1a]' : 'bg-[#f0f4ff]'}`}>
         <div className="text-5xl mb-4">💬</div>
-        <h2 className="text-white text-lg font-semibold">Welcome to ConnectHub</h2>
-        <p className="text-gray-500 text-sm mt-1">Select someone to start chatting</p>
+        <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-800'}`}>
+          Welcome to ConnectHub
+        </h2>
+        <p className={`text-sm mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+          Select someone to start chatting
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 h-screen flex flex-col bg-gray-950">
-       {/*  NEW — back button only on mobile, hidden on desktop (md:hidden) */}
+    <div className={`flex-1 h-screen flex flex-col transition-colors duration-300
+      ${isDark ? 'bg-[#0f0f1a]' : 'bg-[#f0f4ff]'}`}>
+
       <div className="flex items-center gap-2 md:hidden px-4 pt-3">
         <button
           onClick={onBack}
-          className="text-gray-400 hover:text-white transition-colors"
+          className={`transition-colors ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-800'}`}
         >
           <IoArrowBack size={22} />
         </button>
       </div>
+
       <Chatuser />
+
       <div className="flex-1 overflow-hidden">
-            <Messages refreshKey={refreshKey} />
-           </div>
-      <div className="px-4 py-4 border-t border-gray-800/60 bg-gray-950">
+        <Messages refreshKey={refreshKey} />
+      </div>
+
+      <div className={`px-4 py-4 border-t transition-colors duration-300
+        ${isDark ? 'border-[#1e1e3a] bg-[#0f0f1a]' : 'border-[#c7d2fe] bg-[#f0f4ff]'}`}>
         <Type onMessageSent={handleMessageSent} />
       </div>
     </div>
