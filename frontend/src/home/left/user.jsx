@@ -36,15 +36,17 @@ function User({ user , unreadCount, onUserSelect }) {
         />
       </div>
        
-      <div className="flex flex-col min-w-0 ">
-        <h1 className="text-sm font-semibold text-gray-100">{user.fullName}</h1>
-        <span className={`text-xs truncate ${isOnline ? 'text-emerald-400' : 'text-gray-500'}`}>
-          {isOnline ? 'online' : 'offline'}
+       {/*  min-w-0 + flex-1 so text truncates properly on mobile */}
+      <div className="flex flex-col min-w-0 flex-1">
+        <h1 className="text-sm font-semibold text-gray-100 truncate">{user.fullName}</h1>
+         <span className="text-xs text-gray-500 truncate">
+          @{user.username}
         </span>
       </div>
-       {/* // to show unread message count badge */}
-       {unreadCount > 0 && (
-        <div className="flex-shrink-0 w-5 h-5 bg-violet-500 rounded-full flex items-center justify-center">
+
+      {/*  added ml-auto and flex-shrink-0 so badge always visible on mobile */}
+      {unreadCount > 0 && (
+        <div className="ml-auto flex-shrink-0 min-w-[20px] h-5 bg-violet-500 rounded-full flex items-center justify-center px-1">
           <span className="text-[10px] font-bold text-white">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>

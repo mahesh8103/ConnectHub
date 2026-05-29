@@ -36,15 +36,18 @@ app.use("/messages", messageRouter);
 const userSocketMap = {};
 
 export const getReceiverSocketId = (receiverId) => {
-  return userSocketMap[receiverId];
+  const sockets = userSocketMap[receiverId];
+  return sockets && sockets.length > 0 ? sockets[0] : null;
 };
 
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
   const userId = socket.handshake.query.userId;
-  if (userId) userSocketMap[userId] = socket.id;
-
+ if (userId) {
+    if (!userSocketMap[userId]) userSocketMap[userId] = [];
+    userSocketMap[userId].push(socket.id);
+  }
   io.emit("getOnlineUsers", Object.keys(userSocketMap));
   // typing indicator 
 
@@ -64,7 +67,10 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
-    delete userSocketMap[userId];
+    if (userId) {
+      userSocketMap[userId] = userSocketMap[userId].filter(id => id !== socket.id);
+      if (userSocketMap[userId].length === 0) delete userSocketMap[userId];
+    }    
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
   });
 });

@@ -5,24 +5,28 @@ const uploadOnCloudinary = async (localFilePath) => {
   try {
     if (!localFilePath) return null;
 
-    // configure cloudinary HERE (after dotenv has loaded)
     cloudinary.config({
       cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
       api_key: process.env.CLOUDINARY_API_KEY,
       api_secret: process.env.CLOUDINARY_API_SECRET,
     });
 
-    console.log("Uploading file:", localFilePath);
-
     const response = await cloudinary.uploader.upload(localFilePath, {
-      resource_type: "auto",
+      resource_type: "image",
     });
 
-    console.log("Upload success:", response.url);
-    fs.unlinkSync(localFilePath);
-    return response;
+    if (fs.existsSync(localFilePath)) {
+      fs.unlinkSync(localFilePath);
+    }
+
+    return {
+      url: response.secure_url,
+      resource_type: response.resource_type,
+      format: response.format,
+    };
+
   } catch (error) {
-    console.log("Cloudinary upload error:", error.message);
+    console.log(error);
     if (fs.existsSync(localFilePath)) {
       fs.unlinkSync(localFilePath);
     }
@@ -30,4 +34,4 @@ const uploadOnCloudinary = async (localFilePath) => {
   }
 };
 
-export { uploadOnCloudinary , cloudinary};
+export { uploadOnCloudinary, cloudinary };

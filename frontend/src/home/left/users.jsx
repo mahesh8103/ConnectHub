@@ -1,16 +1,21 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import axios from 'axios'
 import User from './user'
-import useSocket from '../../context/useSocket.js';
-import useAuth from '../../context/useAuth.js';
+import useSocket from '../../context/useSocket'
+import useAuth from '../../context/useAuth'
 
-function Users({ searchQuery , onUserSelect }) {
+function Users({ searchQuery, onUserSelect }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [unreadCounts, setUnreadCounts] = useState({}); // { userId: count }
+  const [unreadCounts, setUnreadCounts] = useState({});
   const { socket } = useSocket();
   const { selectedUser } = useAuth();
 
+  // this fixes mobile unread count issue — stale closure was causing it
+  const selectedUserRef = useRef(selectedUser);
+  useEffect(() => {
+    selectedUserRef.current = selectedUser;
+  }, [selectedUser]);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -22,50 +27,48 @@ function Users({ searchQuery , onUserSelect }) {
         setUsers(res.data.data);
       } catch (error) {
         console.log(error.response?.data?.message || "Failed to fetch users");
-      }
-       finally {
+      } finally {
         setLoading(false);
       }
     };
-
     fetchUsers();
-  }, []); // [] = Without [], fetchUsers() would run every time the component re-renders — including after setUsers() is called — creating an infinite loop:
-                        // fetch → setUsers → re-render → fetch → setUsers → re-render → 
-                        //The [] says: "Only run once, never again" — which is exactly what you want for initial data loading.
+  }, []);
 
-    useEffect(()=>{
-      if(!socket) return;
-      socket.on("newMessage",(newMessage)=>{
-        if(newMessage.senderId!== selectedUser?._Id){
-          setUnreadCounts(prev => ({
-            ...prev,
-            [newMessage.senderId]: (prev[newMessage.senderId] || 0) + 1
-          }));
-        }
-      })
-      return ()=> {
-        socket.off("newMessage");
-      }
-    },[socket, selectedUser])
+  // fixes mobile unread count not updating
+  useEffect(() => {
+    if (!socket) return;
 
-    useEffect(()=>{
-      if (selectedUser) {
+    const handleNewMessage = (newMessage) => {
+      const currentSelected = selectedUserRef.current;
+      // only count if NOT from currently open chat
+      if (newMessage.senderId !== currentSelected?._id) {
         setUnreadCounts(prev => ({
           ...prev,
-          [selectedUser._id]: 0
+          [newMessage.senderId]: (prev[newMessage.senderId] || 0) + 1
         }));
       }
-    }, [selectedUser])
+    };
 
-    // filter users based on searchQuery — checks fullName and username
+    socket.on("newMessage", handleNewMessage);
+    return () => socket.off("newMessage", handleNewMessage);
+  }, [socket]); // no selectedUser in deps — using ref instead
+
+  // clear unread when user selected
+  useEffect(() => {
+    if (selectedUser) {
+      setUnreadCounts(prev => ({ ...prev, [selectedUser._id]: 0 }));
+    }
+  }, [selectedUser]);
+
   const filteredUsers = users.filter((user) => {
-    if (!searchQuery) return true; // no query → show all
+    if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
     return (
       user.fullName.toLowerCase().includes(query) ||
       user.username.toLowerCase().includes(query)
     );
-  });                     
+  });
+
   if (loading) {
     return (
       <div className="flex flex-col gap-2 px-2 py-2">
@@ -84,25 +87,21 @@ function Users({ searchQuery , onUserSelect }) {
 
   return (
     <div className="flex flex-col gap-1 px-2">
-      {/* no results found */}
       {filteredUsers.length === 0 && (
         <div className="flex flex-col items-center justify-center py-8 gap-2">
           <p className="text-gray-600 text-sm">
             {searchQuery ? `No users found for "${searchQuery}"` : "No users found"}
           </p>
-          {searchQuery && (
-            <p className="text-gray-700 text-xs">Try a different name or username</p>
-          )}
         </div>
       )}
 
       {filteredUsers.map((user) => (
-        <User 
-        key={user._id} 
-        user={user} 
-        onUserSelect = {onUserSelect}
-        unreadCount={unreadCounts[user._id] || 0}
-         />
+        <User
+          key={user._id}
+          user={user}
+          unreadCount={unreadCounts[user._id] || 0}
+          onUserSelect={onUserSelect}
+        />
       ))}
     </div>
   )
