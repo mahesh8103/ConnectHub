@@ -34,6 +34,18 @@ const userSchema = new mongoose.Schema(
     refreshToken: {
       type: String,
     },
+    isVerified:{
+      type:Boolean,
+      default:false
+    },
+    otp: {
+      type: String,
+      default: null,
+    },
+    otpExpiry: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );

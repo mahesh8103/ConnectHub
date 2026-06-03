@@ -5,6 +5,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { v2 as cloudinary } from "cloudinary";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import jwt from "jsonwebtoken"; 
+import { sendOtpEmail } from "../utils/sendEmail.js";
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
@@ -31,48 +32,107 @@ const generateAccessTokenAndRefreshToken = async (userId) => {
 const signup = asyncHandler(async (req, res) => {
   const { fullName, username, email, password } = req.body;
 
-  // check empty fields
   if ([fullName, username, email, password].some((field) => field?.trim() === "")) {
     throw new ApiError(400, "All fields are required");
   }
 
-  // check if user already exists
-  const existedUser = await User.findOne({
-    $or: [ { username }, { email }],
-  });
+  // check email and username separately for better error handling
+  const existingEmail = await User.findOne({ email });
+  const existingUsername = await User.findOne({ username });
 
-  if (existedUser) {
-    throw new ApiError(409, "User with username or email already exists");
+  //  same email, not verified → resend fresh OTP silently
+  if (existingEmail && existingEmail.isVerified === false) {
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+    existingEmail.otp = otp;
+    existingEmail.otpExpiry = otpExpiry;
+    await existingEmail.save({ validateBeforeSave: false });
+    await sendOtpEmail(existingEmail.email, otp);
+    return res.status(200).json(
+      new ApiResponse(200, { email: existingEmail.email }, "OTP resent to your email. Please verify.")
+    );
   }
 
-  // handle avatar upload
+  // same email, already verified → block
+  if (existingEmail && existingEmail.isVerified === true) {
+    throw new ApiError(409, "Email already registered. Please login.");
+  }
+
+  // username taken by someone else → block
+  if (existingUsername) {
+    throw new ApiError(409, "Username already taken. Please choose another.");
+  }
+
+  // fresh user — create normally
   let avatarUrl = `https://ui-avatars.com/api/?name=${fullName}&background=random&color=fff&bold=true`;
-  if(req.files?.avatar?.[0]?.path){
+  if (req.files?.avatar?.[0]?.path) {
     const upload = await uploadOnCloudinary(req.files.avatar[0].path);
     if (upload?.url) avatarUrl = upload.url;
-  };
+  }
 
-  // create user
-  const user = await User.create({
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+
+  await User.create({
     fullName,
     username,
     email,
     password,
     avatar: avatarUrl,
+    isVerified: false,
+    otp,
+    otpExpiry,
   });
 
-  const createdUser = await User.findById(user._id).select(
-    "-password -refreshToken"
-  );
+  await sendOtpEmail(email, otp);
 
-  if (!createdUser) {
-    throw new ApiError(500, "Something went wrong while registering user");
+  return res.status(201).json(
+    new ApiResponse(201, { email }, "OTP sent to your email. Please verify.")
+  );
+});
+
+//------------------verify OTP------------------
+
+const verifyOtp = asyncHandler(async (req, res) => {
+  const { email, otp } = req.body;
+
+  if (!email || !otp) {
+    throw new ApiError(400, "Email and OTP are required");
   }
 
-  return res
-    .status(201)
-    .json(new ApiResponse(201, createdUser, "User registered successfully"));
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  if (user.isVerified) {
+    throw new ApiError(400, "Email already verified");
+  }
+
+  if (!user.otp || !user.otpExpiry) {
+    throw new ApiError(400, "No OTP found. Please signup again");
+  }
+
+  if (user.otp !== otp) {
+    throw new ApiError(400, "Invalid OTP");
+  }
+
+  if (new Date() > user.otpExpiry) {
+    throw new ApiError(400, "OTP has expired. Please signup again");
+  }
+
+  // mark verified and clear OTP
+  user.isVerified = true;
+  user.otp = null;
+  user.otpExpiry = null;
+  await user.save({ validateBeforeSave: false });
+
+  return res.status(200).json(
+    new ApiResponse(200, {}, "Email verified successfully. You can now login.")
+  );
 });
+
 
 // ─── Login ─────────────────────────────────────────────────────────────────────
 
@@ -90,9 +150,13 @@ const loginUser = asyncHandler(async (req, res) => {
   const userExist = await User.findOne({
     $or: [{ username }, { email }],
   });
+  
 
   if (!userExist) {
     throw new ApiError(404, "User does not exist, please sign up first");
+  }
+   if (userExist.isVerified==false) {
+    throw new ApiError(403, "Please verify your email before logging in");
   }
 
   const isPasswordValid = await userExist.isPasswordCorrect(password);
@@ -273,7 +337,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
   if (!avatar?.url) {
     throw new ApiError(400, "Error while uploading avatar, please try again");
   }
-    if (oldAvatarUrl) {
+    if (oldAvatarUrl && oldAvatarUrl.includes("cloudinary.com")) {
     const publicId = oldAvatarUrl
       .split("/upload/")[1]
       .replace(/\.[^/.]+$/, "")
@@ -314,6 +378,7 @@ const getAllUsers = asyncHandler(async (req, res) =>{
 
 export {
   signup,
+  verifyOtp,
   loginUser,
   logoutUser,
   refreshAccessToken,

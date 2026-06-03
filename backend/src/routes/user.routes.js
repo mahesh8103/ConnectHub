@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   signup,
+  verifyOtp,
   loginUser,
   logoutUser,
   refreshAccessToken,
@@ -21,6 +22,8 @@ router.route("/signup").post(
   upload.fields([{ name: "avatar", maxCount: 1 }]),
   signup
 );
+
+router.route("/verifyOtp").post(verifyOtp);
 
 router.route("/login").post(loginUser);
 
