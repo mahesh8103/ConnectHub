@@ -25,6 +25,13 @@ function Users({ searchQuery, onUserSelect }) {
           { withCredentials: true }
         );
         setUsers(res.data.data);
+        const counts = {};
+      res.data.data.forEach(user => {
+        if (user.unreadCount > 0) {
+          counts[user._id] = user.unreadCount;
+        }
+      });
+      setUnreadCounts(counts);
       } catch (error) {
         console.log(error.response?.data?.message || "Failed to fetch users");
       } finally {

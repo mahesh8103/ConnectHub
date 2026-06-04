@@ -5,10 +5,13 @@ import { FaEnvelope, FaLock } from "react-icons/fa";
 import axios from "axios";
 import useAuth from "../context/useAuth";
 import { toast } from 'react-toastify';
+import { FaEye, FaEyeSlash } from "react-icons/fa";
 
 function Login() {
   const { setAuthUser } = useAuth();
   const navigate = useNavigate();
+  const [showPassword, setShowPassword] = useState(false);
+
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -87,7 +90,7 @@ function Login() {
           <div className="relative group">
             <FaLock className="absolute top-4 left-4 text-gray-500 group-focus-within:text-violet-400 transition-colors" />
             <input
-              type="password"
+              type={showPassword ? "text" : "password"} 
               name="password"
               value={formData.password}
               onChange={handleChange}
@@ -95,7 +98,17 @@ function Login() {
               className="w-full pl-11 pr-4 py-3 rounded-xl bg-gray-800/60 border border-gray-700/60 text-white placeholder-gray-500 outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-all text-sm"
               required
             />
+            {/* eye icon on right */}
+                <button
+                   type="button"
+                   onClick={() => setShowPassword(!showPassword)}
+                   className="absolute top-4 right-4 text-gray-500 hover:text-violet-400 transition-colors"
+                >
+              {showPassword ? <FaEyeSlash size={15} /> : <FaEye size={15} />}
+               </button>
           </div>
+          
+
             
           {/* Button */}
           <motion.button

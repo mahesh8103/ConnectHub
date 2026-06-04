@@ -369,7 +369,20 @@ const getAllUsers = asyncHandler(async (req, res) =>{
   const users = await User.find({_id: {$ne: loggedInUserId}})
   .select("-password -refreshToken")
   .lean();      // it will return plain js objects instead of mongoose documents, so it will be faster and we don't need mongoose document methods for this
-  return res.status(200).json(new ApiResponse(200, users, "Users fetched successfully"));
+  //  for each user count unread messages
+  const { Message } = await import("../models/message.models.js");
+  
+  const usersWithUnread = await Promise.all(
+    users.map(async (user) => {
+      const unreadCount = await Message.countDocuments({
+        senderId: user._id,
+        receiverId: loggedInUserId,
+        status: { $in: ["sent", "delivered"] },
+      });
+      return { ...user, unreadCount };
+    })
+  );
+  return res.status(200).json(new ApiResponse(200, usersWithUnread, "Users fetched successfully"));
 
 })
 // ─── Exports ───────────────────────────────────────────────────────────────────
