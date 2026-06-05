@@ -1,11 +1,11 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { IoSend, IoAttach, IoCloseCircle } from 'react-icons/io5'
 import axios from 'axios'
 import useAuth from '../../context/useAuth'
 import useSocket from '../../context/useSocket.js'
 import { toast } from 'react-toastify';
 
-function Type({ onMessageSent }) {
+function Type({ onMessageSent, suggestionText, onSuggestionUsed }) {
   const { selectedUser } = useAuth();
   const { socket } = useSocket();
   const [message, setMessage] = useState("");
@@ -14,6 +14,14 @@ function Type({ onMessageSent }) {
   const [sending, setSending] = useState(false);
   const fileInputRef = React.useRef(null);
   const typingTimeoutRef = React.useRef(null);
+
+   //  fill input when suggestion clicked
+  useEffect(() => {
+    if (suggestionText && suggestionText.trim() !== "") {
+      setMessage(suggestionText);
+      onSuggestionUsed?.(); // tell Right.jsx suggestion was used
+    }
+  }, [suggestionText]);
 
   const handleFileSelect = (e) => {
     const selected = e.target.files[0];
