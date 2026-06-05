@@ -21,35 +21,22 @@ function Right({ onBack }) {
   }, []);
 
   const handleLastMessage = useCallback((message) => {
-    console.log("🔵 handleLastMessage called:", message);
     setLastMessage(message);
   }, []);
 
   const handleMessagesUpdate = useCallback((messages) => {
-    console.log("🔵 handleMessagesUpdate called, count:", messages.length);
-    console.log("🔵 Sample message:", JSON.stringify(messages[0]));
     setAllMessages(messages);
   }, []);
 
   const handleSuggestionClick = useCallback((suggestion) => {
-    console.log("🔵 Suggestion clicked:", suggestion);
     setSuggestionText(suggestion);
   }, []);
-
-  const handleSummarizeClick = () => {
-    console.log("=== 🟡 SUMMARIZE BUTTON CLICKED ===");
-    console.log("allMessages count:", allMessages.length);
-    console.log("allMessages[0]:", JSON.stringify(allMessages[0]));
-    console.log("allMessages[1]:", JSON.stringify(allMessages[1]));
-    setTriggerSummarize(prev => prev + 1);
-  };
 
   if (!selectedUser) {
     return (
       <div className={`flex-1 h-screen flex flex-col items-center justify-center
         transition-colors duration-300
         ${isDark ? 'bg-[#0f0f1a]' : 'bg-[#f0f4ff]'}`}>
-        <div className="text-5xl mb-4">💬</div>
         <h2 className={`text-lg font-semibold
           ${isDark ? 'text-white' : 'text-gray-800'}`}>
           Welcome to ConnectHub
@@ -80,7 +67,6 @@ function Right({ onBack }) {
 
       <Chatuser />
 
-     {/* Summarize button ← ADD THIS BLOCK */}
       <div className={`px-4 py-1.5 flex justify-end border-b transition-colors duration-300
         ${isDark ? 'border-[#1e1e3a] bg-[#0f0f1a]' : 'border-[#c7d2fe] bg-[#f0f4ff]'}`}>
         <button
@@ -90,10 +76,10 @@ function Right({ onBack }) {
               ? 'border-violet-500/30 text-violet-400 hover:bg-violet-600/10'
               : 'border-indigo-400/40 text-indigo-500 hover:bg-indigo-50'}`}
         >
-          🤖 Summarize Chat
+          Summarize Chat
         </button>
-      </div>  
-      
+      </div>
+
       <div className="flex-1 overflow-hidden">
         <Messages
           refreshKey={refreshKey}
@@ -107,7 +93,7 @@ function Right({ onBack }) {
         lastMessage={lastMessage}
         onSuggestionClick={handleSuggestionClick}
         triggerSummarize={triggerSummarize}
-         otherUserName={selectedUser?.fullName} 
+        otherUserName={selectedUser?.fullName}
       />
 
       <div className={`px-4 py-4 border-t transition-colors duration-300

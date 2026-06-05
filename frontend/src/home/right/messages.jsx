@@ -50,12 +50,11 @@ function Messages({ refreshKey, onLastMessage, onMessagesUpdate }) {
     });
   }, []);
 
-  // ── Fetch messages when selectedUser changes ──────────────────────────────
+  // Fetch messages when selected user changes
   useEffect(() => {
     if (!selectedUser) return;
 
     const fetchMessages = async () => {
-      console.log("📨 Fetching messages for:", selectedUser._id);
       setIsInitialLoad(true);
       setMessages([]);
       setSkip(0);
@@ -69,19 +68,10 @@ function Messages({ refreshKey, onLastMessage, onMessagesUpdate }) {
         );
         const data = res.data.data;
 
-        console.log("📨 Messages fetched:", data.length);
-        console.log("📨 First message:", JSON.stringify(data[0]));
-        console.log("📨 Last message:", JSON.stringify(data[data.length - 1]));
-
         setMessages(data);
-
-        // ── Tell Right.jsx about messages ──
-        console.log("📤 Calling onMessagesUpdate with", data.length, "messages");
         onMessagesUpdateRef.current?.(data);
 
-        // ── Tell Right.jsx about last message ──
         if (data.length > 0) {
-          console.log("📤 Calling onLastMessage with:", JSON.stringify(data[data.length - 1]));
           onLastMessageRef.current?.(data[data.length - 1]);
         }
 
@@ -93,7 +83,7 @@ function Messages({ refreshKey, onLastMessage, onMessagesUpdate }) {
 
         if (data.length < LIMIT) setHasMore(false);
       } catch (error) {
-        console.log(
+        console.error(
           error.response?.data?.message || "Failed to fetch messages"
         );
       } finally {
@@ -110,7 +100,7 @@ function Messages({ refreshKey, onLastMessage, onMessagesUpdate }) {
     }
   }, [isInitialLoad, scrollToBottom]);
 
-  // ── Refresh after sending message ─────────────────────────────────────────
+  // Refresh messages after sending
   useEffect(() => {
     if (refreshKey > 0 && selectedUser) {
       const fetchLatest = async () => {
@@ -120,21 +110,20 @@ function Messages({ refreshKey, onLastMessage, onMessagesUpdate }) {
             { withCredentials: true }
           );
           const data = res.data.data;
-          console.log("🔄 Refresh: messages count:", data.length);
           setMessages(data);
           onMessagesUpdateRef.current?.(data);
           setSkip(0);
           if (data.length < LIMIT) setHasMore(false);
           setTimeout(() => scrollToBottom("smooth"), 100);
         } catch (error) {
-          console.log("Failed to refresh messages", error);
+          console.error("Failed to refresh messages", error);
         }
       };
       fetchLatest();
     }
   }, [refreshKey, selectedUser, scrollToBottom]);
 
-  // ── Load older messages on scroll top ─────────────────────────────────────
+  // Load older messages on scroll to top
   const handleScroll = useCallback(async () => {
     const container = containerRef.current;
     if (!container) return;
@@ -174,34 +163,27 @@ function Messages({ refreshKey, onLastMessage, onMessagesUpdate }) {
         });
       });
     } catch (error) {
-      console.log("Failed to load older messages", error);
+      console.error("Failed to load older messages", error);
     } finally {
       setIsLoadingOlder(false);
       isFetchingRef.current = false;
     }
   }, [skip, hasMore]);
 
-  // ── Socket: receive new message ───────────────────────────────────────────
+  // Socket: receive new message
   useEffect(() => {
     if (!socket) return;
 
     const handleNewMessage = (newMessage) => {
       const currentSelectedUser = selectedUserRef.current;
-      console.log("🔔 New message received via socket:", newMessage);
-      console.log("🔔 Current selected user:", currentSelectedUser?._id);
-      console.log("🔔 Message from:", newMessage.senderId);
 
       if (newMessage.senderId === currentSelectedUser?._id) {
-        console.log("✅ Message is from current chat - updating state");
-
         setMessages((prev) => {
           const updated = [...prev, newMessage];
-          console.log("📤 Calling onMessagesUpdate after new message, count:", updated.length);
           onMessagesUpdateRef.current?.(updated);
           return updated;
         });
 
-        console.log("📤 Calling onLastMessage with new message");
         onLastMessageRef.current?.(newMessage);
 
         setTimeout(() => scrollToBottom("smooth"), 50);
@@ -213,8 +195,6 @@ function Messages({ refreshKey, onLastMessage, onMessagesUpdate }) {
             { withCredentials: true }
           )
           .catch(() => {});
-      } else {
-        console.log("⏭️ Message is from different chat - skipping UI update");
       }
     };
 
@@ -222,12 +202,11 @@ function Messages({ refreshKey, onLastMessage, onMessagesUpdate }) {
     return () => socket.off("newMessage", handleNewMessage);
   }, [socket, scrollToBottom]);
 
-  // ── Socket: delivery and seen status ─────────────────────────────────────
+  // Socket: delivery and seen status updates
   useEffect(() => {
     if (!socket) return;
 
     const handleDelivered = ({ to }) => {
-      console.log("📬 messagesDelivered event, to:", to);
       setMessages((prev) =>
         prev.map((msg) => {
           const isMine = msg.senderId?.toString() !== to?.toString();
@@ -240,7 +219,6 @@ function Messages({ refreshKey, onLastMessage, onMessagesUpdate }) {
     };
 
     const handleSeen = ({ by }) => {
-      console.log("👁️ messagesSeen event, by:", by);
       setMessages((prev) =>
         prev.map((msg) => {
           const isMine = msg.senderId?.toString() !== by?.toString();
@@ -261,7 +239,7 @@ function Messages({ refreshKey, onLastMessage, onMessagesUpdate }) {
     };
   }, [socket]);
 
-  // ── Date helpers ──────────────────────────────────────────────────────────
+  // Date helpers
   const formatDateLabel = (date) => {
     const today = new Date();
     const yesterday = new Date();
@@ -321,7 +299,7 @@ function Messages({ refreshKey, onLastMessage, onMessagesUpdate }) {
 
       {messages.length === 0 && !isInitialLoad && (
         <p className="text-gray-500 text-sm text-center mt-4">
-          No messages yet. Say hi! 👋
+          No messages yet. Say hi!
         </p>
       )}
 
