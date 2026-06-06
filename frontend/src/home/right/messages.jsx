@@ -12,14 +12,21 @@ import useSocket from "../../context/useSocket";
 
 const LIMIT = 20;
 
-function Messages({ refreshKey, onLastMessage, onMessagesUpdate }) {
-  const { selectedUser } = useAuth();
+function Messages({
+  refreshKey,
+  onLastMessage,
+  onMessagesUpdate,
+  scrollToMessageId,
+  onScrollComplete,
+}) {
+  const { selectedUser, authUser } = useAuth(); // ← FIX: authUser also needed for status checks
   const { socket } = useSocket();
   const [messages, setMessages] = useState([]);
   const [skip, setSkip] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [highlightedId, setHighlightedId] = useState(null);
 
   const bottomRef = useRef(null);
   const containerRef = useRef(null);
@@ -27,6 +34,15 @@ function Messages({ refreshKey, onLastMessage, onMessagesUpdate }) {
   const selectedUserRef = useRef(selectedUser);
   const onLastMessageRef = useRef(onLastMessage);
   const onMessagesUpdateRef = useRef(onMessagesUpdate);
+  const messageRefs = useRef({});
+
+  // ── FIX: store authUser._id in a ref so socket handlers can use it ─────────
+  // Without this, closures inside useEffect capture stale values
+  const authUserIdRef = useRef(authUser?._id);
+
+  useEffect(() => {
+    authUserIdRef.current = authUser?._id;
+  }, [authUser]);
 
   useEffect(() => {
     selectedUserRef.current = selectedUser;
@@ -50,7 +66,26 @@ function Messages({ refreshKey, onLastMessage, onMessagesUpdate }) {
     });
   }, []);
 
-  // Fetch messages when selected user changes
+  // ── Scroll to specific message (search result click) ──────────────────────
+  useEffect(() => {
+    if (!scrollToMessageId) return;
+
+    const el = messageRefs.current[scrollToMessageId];
+
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHighlightedId(scrollToMessageId);
+
+      setTimeout(() => {
+        setHighlightedId(null);
+        onScrollComplete?.();
+      }, 2000);
+    } else {
+      onScrollComplete?.();
+    }
+  }, [scrollToMessageId, onScrollComplete]);
+
+  // ── Fetch messages when selected user changes ─────────────────────────────
   useEffect(() => {
     if (!selectedUser) return;
 
@@ -100,7 +135,7 @@ function Messages({ refreshKey, onLastMessage, onMessagesUpdate }) {
     }
   }, [isInitialLoad, scrollToBottom]);
 
-  // Refresh messages after sending
+  // ── Refresh messages after sending ────────────────────────────────────────
   useEffect(() => {
     if (refreshKey > 0 && selectedUser) {
       const fetchLatest = async () => {
@@ -123,7 +158,7 @@ function Messages({ refreshKey, onLastMessage, onMessagesUpdate }) {
     }
   }, [refreshKey, selectedUser, scrollToBottom]);
 
-  // Load older messages on scroll to top
+  // ── Load older messages on scroll to top ─────────────────────────────────
   const handleScroll = useCallback(async () => {
     const container = containerRef.current;
     if (!container) return;
@@ -170,7 +205,7 @@ function Messages({ refreshKey, onLastMessage, onMessagesUpdate }) {
     }
   }, [skip, hasMore]);
 
-  // Socket: receive new message
+  // ── Socket: new message ───────────────────────────────────────────────────
   useEffect(() => {
     if (!socket) return;
 
@@ -202,15 +237,34 @@ function Messages({ refreshKey, onLastMessage, onMessagesUpdate }) {
     return () => socket.off("newMessage", handleNewMessage);
   }, [socket, scrollToBottom]);
 
-  // Socket: delivery and seen status updates
+  // ── Socket: delivery and seen status ─────────────────────────────────────
+  // FIX: Previously isMine logic was inverted, causing wrong messages to update
+  //
+  // How socket events work:
+  //   "messagesDelivered" → emitted to SENDER with { to: senderId(receiver's ID) }
+  //     → We need to find OUR messages sent TO that person
+  //   "messagesSeen"      → emitted to SENDER with { by: receiverId (who saw) }
+  //     → We need to find OUR messages that THEY saw
+  //
+  // Correct check: msg.senderId === MY id (authUserIdRef)
+  // This finds messages I sent (not messages I received)
   useEffect(() => {
     if (!socket) return;
 
     const handleDelivered = ({ to }) => {
+      // "to" = the receiver's ID (person we're chatting with)
+      // We want to update messages where:
+      //   - I am the sender (senderId === my ID)
+      //   - The receiver is "to"
+      //   - Status was "sent" → now "delivered"
       setMessages((prev) =>
         prev.map((msg) => {
-          const isMine = msg.senderId?.toString() !== to?.toString();
-          if (isMine && msg.status === "sent") {
+          const iMySentMessage =
+            msg.senderId?.toString() === authUserIdRef.current?.toString();
+          const sentToThisPerson =
+            msg.receiverId?.toString() === to?.toString();
+
+          if (iMySentMessage && sentToThisPerson && msg.status === "sent") {
             return { ...msg, status: "delivered" };
           }
           return msg;
@@ -219,10 +273,19 @@ function Messages({ refreshKey, onLastMessage, onMessagesUpdate }) {
     };
 
     const handleSeen = ({ by }) => {
+      // "by" = the person who saw our messages (receiver)
+      // We want to update messages where:
+      //   - I am the sender (senderId === my ID)
+      //   - They are the receiver ("by" = receiver's ID)
+      //   - Update ALL to "seen" (overwrite delivered too)
       setMessages((prev) =>
         prev.map((msg) => {
-          const isMine = msg.senderId?.toString() !== by?.toString();
-          if (isMine) {
+          const iMySentMessage =
+            msg.senderId?.toString() === authUserIdRef.current?.toString();
+          const seenByThisPerson =
+            msg.receiverId?.toString() === by?.toString();
+
+          if (iMySentMessage && seenByThisPerson) {
             return { ...msg, status: "seen" };
           }
           return msg;
@@ -239,7 +302,57 @@ function Messages({ refreshKey, onLastMessage, onMessagesUpdate }) {
     };
   }, [socket]);
 
-  // Date helpers
+  // ── Socket: delete and react ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleMessageDeleted = ({ messageId }) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg._id === messageId
+            ? { ...msg, isDeleted: true, message: "", image: "" }
+            : msg
+        )
+      );
+    };
+
+    const handleMessageReacted = ({ messageId, reactions }) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg._id === messageId ? { ...msg, reactions } : msg
+        )
+      );
+    };
+
+    socket.on("messageDeleted", handleMessageDeleted);
+    socket.on("messageReacted", handleMessageReacted);
+
+    return () => {
+      socket.off("messageDeleted", handleMessageDeleted);
+      socket.off("messageReacted", handleMessageReacted);
+    };
+  }, [socket]);
+
+  // ── Local handlers passed down to Message component ───────────────────────
+  const handleDelete = useCallback((messageId) => {
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg._id === messageId
+          ? { ...msg, isDeleted: true, message: "", image: "" }
+          : msg
+      )
+    );
+  }, []);
+
+  const handleReact = useCallback((messageId, reactions) => {
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg._id === messageId ? { ...msg, reactions } : msg
+      )
+    );
+  }, []);
+
+  // ── Date helpers ──────────────────────────────────────────────────────────
   const formatDateLabel = (date) => {
     const today = new Date();
     const yesterday = new Date();
@@ -315,7 +428,33 @@ function Messages({ refreshKey, onLastMessage, onMessagesUpdate }) {
             </div>
           );
         }
-        return <Message key={item.key} message={item.data} />;
+
+        const isHighlighted = item.data._id === highlightedId;
+
+        return (
+          <div
+            key={item.key}
+            ref={(el) => {
+              if (el) messageRefs.current[item.data._id] = el;
+            }}
+            style={{
+              borderRadius: "12px",
+              transition: "background 0.3s ease",
+              background: isHighlighted
+                ? "rgba(139, 92, 246, 0.15)"
+                : "transparent",
+              outline: isHighlighted
+                ? "1px solid rgba(139,92,246,0.3)"
+                : "none",
+            }}
+          >
+            <Message
+              message={item.data}
+              onDelete={handleDelete}
+              onReact={handleReact}
+            />
+          </div>
+        );
       })}
 
       <div ref={bottomRef} />

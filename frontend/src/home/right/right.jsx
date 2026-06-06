@@ -3,9 +3,11 @@ import Chatuser from './chatuser'
 import Messages from './messages'
 import Type from './type'
 import AICopilot from './AICopilot'
+import SearchResults from './SearchResults'
 import useAuth from '../../context/useAuth'
 import useTheme from '../../context/useTheme'
 import { IoArrowBack } from 'react-icons/io5'
+import axios from 'axios'
 
 function Right({ onBack }) {
   const { selectedUser } = useAuth();
@@ -15,6 +17,11 @@ function Right({ onBack }) {
   const [suggestionText, setSuggestionText] = useState("");
   const [allMessages, setAllMessages] = useState([]);
   const [triggerSummarize, setTriggerSummarize] = useState(0);
+
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchActive, setSearchActive] = useState(false);
+  const [scrollToMessageId, setScrollToMessageId] = useState(null);
 
   const handleMessageSent = useCallback(() => {
     setRefreshKey(prev => prev + 1);
@@ -30,6 +37,39 @@ function Right({ onBack }) {
 
   const handleSuggestionClick = useCallback((suggestion) => {
     setSuggestionText(suggestion);
+  }, []);
+
+  const handleSummarize = useCallback(() => {
+    setTriggerSummarize(prev => prev + 1);
+  }, []);
+
+  const handleSearch = useCallback(async (query) => {
+    if (!query.trim() || !selectedUser) return;
+    setIsSearching(true);
+    setSearchActive(true);
+    try {
+      const res = await axios.get(
+        `http://localhost:5002/messages/${selectedUser._id}/search?query=${encodeURIComponent(query)}`,
+        { withCredentials: true }
+      );
+      setSearchResults(res.data.data || []);
+    } catch (error) {
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  }, [selectedUser]);
+
+  const handleClearSearch = useCallback(() => {
+    setSearchResults([]);
+    setSearchActive(false);
+    setIsSearching(false);
+    setScrollToMessageId(null);
+  }, []);
+
+  const handleResultClick = useCallback((messageId) => {
+    setScrollToMessageId(messageId);
+    setSearchActive(false);
   }, []);
 
   if (!selectedUser) {
@@ -50,41 +90,44 @@ function Right({ onBack }) {
   }
 
   return (
-    <div className={`flex-1 h-screen flex flex-col transition-colors duration-300
+    <div className={`flex-1 h-screen flex flex-col transition-colors duration-300 relative
       ${isDark ? 'bg-[#0f0f1a]' : 'bg-[#f0f4ff]'}`}>
 
       <div className="flex items-center gap-2 md:hidden px-4 pt-3">
         <button
           onClick={onBack}
           className={`transition-colors
-            ${isDark
-              ? 'text-gray-400 hover:text-white'
-              : 'text-gray-500 hover:text-gray-800'}`}
+            ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-800'}`}
         >
           <IoArrowBack size={22} />
         </button>
       </div>
 
-      <Chatuser />
+      <Chatuser
+        onSearch={handleSearch}
+        onClearSearch={handleClearSearch}
+        isSearching={isSearching}
+        onSummarize={handleSummarize}      
+      />
 
-      <div className={`px-4 py-1.5 flex justify-end border-b transition-colors duration-300
-        ${isDark ? 'border-[#1e1e3a] bg-[#0f0f1a]' : 'border-[#c7d2fe] bg-[#f0f4ff]'}`}>
-        <button
-          onClick={() => setTriggerSummarize(prev => prev + 1)}
-          className={`text-[11px] px-3 py-1 rounded-full border transition-all duration-200
-            ${isDark
-              ? 'border-violet-500/30 text-violet-400 hover:bg-violet-600/10'
-              : 'border-indigo-400/40 text-indigo-500 hover:bg-indigo-50'}`}
-        >
-          Summarize Chat
-        </button>
-      </div>
+
+      {searchActive && (
+        <SearchResults
+          results={searchResults}
+          isSearching={isSearching}
+          onResultClick={handleResultClick}
+          onClose={handleClearSearch}
+          isDark={isDark}
+        />
+      )}
 
       <div className="flex-1 overflow-hidden">
         <Messages
           refreshKey={refreshKey}
           onLastMessage={handleLastMessage}
           onMessagesUpdate={handleMessagesUpdate}
+          scrollToMessageId={scrollToMessageId}
+          onScrollComplete={() => setScrollToMessageId(null)}
         />
       </div>
 
@@ -97,9 +140,7 @@ function Right({ onBack }) {
       />
 
       <div className={`px-4 py-4 border-t transition-colors duration-300
-        ${isDark
-          ? 'border-[#1e1e3a] bg-[#0f0f1a]'
-          : 'border-[#c7d2fe] bg-[#f0f4ff]'}`}>
+        ${isDark ? 'border-[#1e1e3a] bg-[#0f0f1a]' : 'border-[#c7d2fe] bg-[#f0f4ff]'}`}>
         <Type
           onMessageSent={handleMessageSent}
           suggestionText={suggestionText}
