@@ -7,7 +7,6 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 
 const router = Router();
 
-// Cache
 const cache = new Map();
 
 const getCached = (key) => {
@@ -25,21 +24,17 @@ const setCache = (key, data) => {
   cache.set(key, { data, time: Date.now() });
 };
 
-// Rate limiter
 const userLastCall = new Map();
 
 const isRateLimited = (userId, action, limitMs) => {
   const key = `${userId}-${action}`;
   const last = userLastCall.get(key) || 0;
   const now = Date.now();
-
   if (now - last < limitMs) return true;
-
   userLastCall.set(key, now);
   return false;
 };
 
-// JSON helpers
 const extractJsonBlock = (raw = "") => {
   const cleaned = String(raw)
     .replace(/```json/gi, "")
@@ -63,7 +58,6 @@ const safeParseJson = (raw = "") => {
   }
 };
 
-// Quality checks
 const isGoodSummary = (s = "") => {
   if (!s || typeof s !== "string") return false;
   if (s.trim().length < 40) return false;
@@ -101,7 +95,6 @@ const containsHallucinatedTopic = (summary = "", messages = []) => {
   );
 };
 
-// Fallbacks
 const buildFallbackSummary = (messages = []) => {
   const otherName =
     messages.find((m) => m.senderName && m.senderName !== "You")?.senderName ||
@@ -246,7 +239,6 @@ const normalizeSuggestions = (parsedOrRaw, lastMessage) => {
   return suggestions.slice(0, 3);
 };
 
-// Primary AI: Groq
 const callGroq = async ({
   prompt,
   temperature = 0.8,
@@ -254,6 +246,9 @@ const callGroq = async ({
 }) => {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("GROQ_API_KEY missing in .env");
+
+  console.log("[AI] Trying Groq...");
+  const startTime = Date.now();
 
   const response = await axios.post(
     "https://api.groq.com/openai/v1/chat/completions",
@@ -285,12 +280,17 @@ Always follow the exact JSON format requested.`,
   );
 
   const text = response.data?.choices?.[0]?.message?.content || "";
-  if (!text.trim()) throw new Error("Empty response from Groq");
+  const timeTaken = Date.now() - startTime;
 
+  if (!text.trim()) {
+    console.log("[AI] Groq returned empty response");
+    throw new Error("Empty response from Groq");
+  }
+
+  console.log(`[AI] Groq success (${timeTaken}ms)`);
   return text.trim();
 };
 
-// Fallback AI: Gemini
 const callGemini = async ({
   prompt,
   temperature = 0.8,
@@ -308,6 +308,10 @@ const callGemini = async ({
   let lastError = null;
 
   for (const url of GEMINI_MODELS) {
+    const modelName = url.split("/models/")[1]?.split(":")[0] || "unknown";
+    console.log(`[AI] Trying Gemini model: ${modelName}...`);
+    const startTime = Date.now();
+
     try {
       const response = await axios.post(
         `${url}?key=${apiKey}`,
@@ -329,10 +333,17 @@ const callGemini = async ({
           ?.map((p) => p.text || "")
           .join("") || "";
 
+      const timeTaken = Date.now() - startTime;
+
       if (text.trim()) {
+        console.log(`[AI] Gemini ${modelName} success (${timeTaken}ms)`);
         return text.trim();
       }
+
+      console.log(`[AI] Gemini ${modelName} returned empty response`);
     } catch (err) {
+      const timeTaken = Date.now() - startTime;
+      console.log(`[AI] Gemini ${modelName} failed (${timeTaken}ms): ${err.message}`);
       lastError = err;
     }
   }
@@ -340,16 +351,20 @@ const callGemini = async ({
   throw lastError || new Error("All Gemini models failed");
 };
 
-// Master caller
 const callAI = async (options) => {
   try {
     return await callGroq(options);
-  } catch {
-    return await callGemini(options);
+  } catch (groqError) {
+    console.log(`[AI] Groq failed: ${groqError.message}, falling back to Gemini`);
+    try {
+      return await callGemini(options);
+    } catch (geminiError) {
+      console.log(`[AI] Gemini also failed: ${geminiError.message}`);
+      throw geminiError;
+    }
   }
 };
 
-// POST /api/ai/suggestions
 router.post(
   "/suggestions",
   verifyJWT,
@@ -360,15 +375,19 @@ router.post(
       throw new ApiError(400, "No message provided");
     }
 
+    console.log(`\n[Suggestions] Request for: "${lastMessage.substring(0, 50)}..."`);
+
     if (isRateLimited(req.user._id.toString(), "suggestions", 4000)) {
       const cached = getCached(`sug-${lastMessage.trim().toLowerCase()}`);
 
       if (cached) {
+        console.log("[Suggestions] Rate limited, returning cached");
         return res
           .status(200)
           .json(new ApiResponse(200, { suggestions: cached }, "Cached"));
       }
 
+      console.log("[Suggestions] Rate limited, returning fallback");
       return res.status(200).json(
         new ApiResponse(
           200,
@@ -382,6 +401,7 @@ router.post(
     const cached = getCached(cacheKey);
 
     if (cached) {
+      console.log("[Suggestions] Returning cached result");
       return res
         .status(200)
         .json(new ApiResponse(200, { suggestions: cached }, "Cached"));
@@ -424,16 +444,21 @@ Return ONLY this JSON nothing else:
       const parsed = safeParseJson(raw);
       const suggestions = normalizeSuggestions(parsed || raw, lastMessage);
 
+      console.log(`[Suggestions] Final result:`, suggestions);
+
       setCache(cacheKey, suggestions);
 
       return res
         .status(200)
         .json(new ApiResponse(200, { suggestions }, "Suggestions generated"));
-    } catch {
+    } catch (err) {
+      console.log(`[Suggestions] All AI failed, using fallback: ${err.message}`);
+      const fb = fallbackSuggestions(lastMessage);
+      console.log(`[Suggestions] Fallback result:`, fb);
       return res.status(200).json(
         new ApiResponse(
           200,
-          { suggestions: fallbackSuggestions(lastMessage) },
+          { suggestions: fb },
           "Fallback"
         )
       );
@@ -441,7 +466,6 @@ Return ONLY this JSON nothing else:
   })
 );
 
-// POST /api/ai/summarize
 router.post(
   "/summarize",
   verifyJWT,
@@ -452,7 +476,10 @@ router.post(
       throw new ApiError(400, "No messages provided");
     }
 
+    console.log(`\n[Summary] Request with ${messages.length} messages`);
+
     if (isRateLimited(req.user._id.toString(), "summarize", 10000)) {
+      console.log("[Summary] Rate limited, using fallback builder");
       return res.status(200).json(
         new ApiResponse(
           200,
@@ -478,10 +505,8 @@ router.post(
         if (m.messageType === "image") {
           return `${m.senderName}: [shared an image]`;
         }
-
         const text = (m.text || "").trim();
         if (!text) return null;
-
         return `${m.senderName}: ${text}`;
       })
       .filter(Boolean)
@@ -490,6 +515,8 @@ router.post(
     if (!conversationText.trim()) {
       throw new ApiError(400, "No text content to summarize");
     }
+
+    console.log(`[Summary] Chat with: ${otherName}, greeting only: ${isGreetingOnly}`);
 
     const prompt = isGreetingOnly
       ? `Write ONE casual warm sentence about "You" and "${otherName}" who just exchanged greetings.
@@ -536,17 +563,24 @@ Return ONLY this JSON:
         !isGoodSummary(summary) ||
         containsHallucinatedTopic(summary, messages)
       ) {
+        console.log("[Summary] AI summary was bad or hallucinated, using fallback");
         summary = buildFallbackSummary(messages);
+        console.log(`[Summary] Fallback result: "${summary.substring(0, 80)}..."`);
+      } else {
+        console.log(`[Summary] AI result: "${summary.substring(0, 80)}..."`);
       }
 
       return res
         .status(200)
         .json(new ApiResponse(200, { summary }, "Summary generated"));
-    } catch {
+    } catch (err) {
+      console.log(`[Summary] All AI failed, using fallback: ${err.message}`);
+      const fb = buildFallbackSummary(messages);
+      console.log(`[Summary] Fallback result: "${fb.substring(0, 80)}..."`);
       return res.status(200).json(
         new ApiResponse(
           200,
-          { summary: buildFallbackSummary(messages) },
+          { summary: fb },
           "Fallback"
         )
       );

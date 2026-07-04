@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { IoSend, IoAttach, IoCloseCircle } from 'react-icons/io5'
 import axios from 'axios'
 import useAuth from '../../context/useAuth'
 import useSocket from '../../context/useSocket.js'
-import { toast } from 'react-toastify';
+import { toast } from 'react-toastify'
 
 function Type({ onMessageSent, suggestionText, onSuggestionUsed }) {
   const { selectedUser } = useAuth();
@@ -12,14 +12,13 @@ function Type({ onMessageSent, suggestionText, onSuggestionUsed }) {
   const [image, setImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [sending, setSending] = useState(false);
-  const fileInputRef = React.useRef(null);
-  const typingTimeoutRef = React.useRef(null);
+  const fileInputRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
 
-   //  fill input when suggestion clicked
   useEffect(() => {
     if (suggestionText && suggestionText.trim() !== "") {
       setMessage(suggestionText);
-      onSuggestionUsed?.(); // tell Right.jsx suggestion was used
+      onSuggestionUsed?.();
     }
   }, [suggestionText]);
 
@@ -49,17 +48,26 @@ function Type({ onMessageSent, suggestionText, onSuggestionUsed }) {
 
   const handleSend = async () => {
     if (!message.trim() && !image) return;
+    if (sending) return;
     setSending(true);
+
     try {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       socket?.emit("stopTyping", { receiverId: selectedUser._id });
+
       const formData = new FormData();
       if (message.trim()) formData.append("message", message);
       if (image) formData.append("image", image);
+
       await axios.post(
         `http://localhost:5002/messages/${selectedUser._id}`,
         formData,
-        { withCredentials: true, headers: { "Content-Type": "multipart/form-data" } }
+        {
+          withCredentials: true,
+          headers: { "Content-Type": "multipart/form-data" },
+        }
       );
+
       setMessage("");
       setImage(null);
       setImagePreview(null);
@@ -73,7 +81,10 @@ function Type({ onMessageSent, suggestionText, onSuggestionUsed }) {
   };
 
   const handleKeyPress = (e) => {
-    if (e.key === "Enter") handleSend();
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
   };
 
   const handleTyping = (e) => {
@@ -87,7 +98,6 @@ function Type({ onMessageSent, suggestionText, onSuggestionUsed }) {
 
   return (
     <div className="flex flex-col gap-2 px-2">
-
       {imagePreview && (
         <div className="relative ml-2 w-fit">
           <div className="relative w-24 h-24">
@@ -107,7 +117,6 @@ function Type({ onMessageSent, suggestionText, onSuggestionUsed }) {
       )}
 
       <div className="flex items-center gap-3">
-
         <button
           onClick={() => fileInputRef.current?.click()}
           className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-800 hover:bg-gray-700 transition-colors flex-shrink-0"
@@ -128,7 +137,7 @@ function Type({ onMessageSent, suggestionText, onSuggestionUsed }) {
           type="text"
           value={message}
           onChange={handleTyping}
-          onKeyPress={handleKeyPress}
+          onKeyDown={handleKeyPress}
           placeholder="Type a message..."
           className="flex-1 px-5 py-3 rounded-full bg-gray-800/80 border border-gray-700/60 focus:outline-none focus:ring-2 focus:ring-violet-500/50 text-sm text-gray-100 placeholder-gray-500"
         />
@@ -140,10 +149,9 @@ function Type({ onMessageSent, suggestionText, onSuggestionUsed }) {
         >
           <IoSend size={17} className="text-white translate-x-[1px]" />
         </button>
-
       </div>
     </div>
-  )
+  );
 }
 
 export default Type;

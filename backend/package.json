@@ -1,11 +1,12 @@
 {
-  "name": "backend",
+  "name": "connecthub-backend",
   "version": "1.0.0",
   "description": "socket io implementation in chat app",
   "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon src/index.js",
+    "start": "node src/index.js"
   },
   "keywords": [
     "MERN"

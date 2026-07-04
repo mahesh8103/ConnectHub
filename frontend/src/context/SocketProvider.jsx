@@ -9,21 +9,27 @@ function SocketProvider({ children }) {
   const [onlineUsers, setOnlineUsers] = useState([]);
 
   useEffect(() => {
-    if (!authUser) return;
+    if (!authUser) {
+      setSocket(null);
+      setOnlineUsers([]);
+      return;
+    }
 
     const newSocket = io("http://localhost:5002", {
       query: { userId: authUser._id },
+      transports: ["websocket"],
     });
+
+    setSocket(newSocket);
 
     newSocket.on("getOnlineUsers", (users) => {
       setOnlineUsers(users);
     });
 
-    newSocket.on("connect", () => {
-      setSocket(newSocket);
-    });
-
-    return () => newSocket.close();
+    return () => {
+      newSocket.disconnect();
+      setSocket(null);
+    };
   }, [authUser]);
 
   return (

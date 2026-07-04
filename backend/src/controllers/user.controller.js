@@ -4,20 +4,16 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { v2 as cloudinary } from "cloudinary";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
-import jwt from "jsonwebtoken"; 
+import jwt from "jsonwebtoken";
 import { sendOtpEmail } from "../utils/sendEmail.js";
-
-// ─── Helper ───────────────────────────────────────────────────────────────────
 
 const generateAccessTokenAndRefreshToken = async (userId) => {
   try {
     const user = await User.findById(userId);
     const accessToken = user.generateAccessToken();
     const refreshToken = user.generateRefreshToken();
-
     user.refreshToken = refreshToken;
     await user.save({ validateBeforeSave: false });
-
     return { accessToken, refreshToken };
   } catch (error) {
     throw new ApiError(
@@ -27,8 +23,6 @@ const generateAccessTokenAndRefreshToken = async (userId) => {
   }
 };
 
-// ─── Signup ────────────────────────────────────────────────────────────────────
-
 const signup = asyncHandler(async (req, res) => {
   const { fullName, username, email, password } = req.body;
 
@@ -36,11 +30,9 @@ const signup = asyncHandler(async (req, res) => {
     throw new ApiError(400, "All fields are required");
   }
 
-  // check email and username separately for better error handling
   const existingEmail = await User.findOne({ email });
   const existingUsername = await User.findOne({ username });
 
-  //  same email, not verified → resend fresh OTP silently
   if (existingEmail && existingEmail.isVerified === false) {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
@@ -53,17 +45,14 @@ const signup = asyncHandler(async (req, res) => {
     );
   }
 
-  // same email, already verified → block
   if (existingEmail && existingEmail.isVerified === true) {
     throw new ApiError(409, "Email already registered. Please login.");
   }
 
-  // username taken by someone else → block
   if (existingUsername) {
     throw new ApiError(409, "Username already taken. Please choose another.");
   }
 
-  // fresh user — create normally
   let avatarUrl = `https://ui-avatars.com/api/?name=${fullName}&background=random&color=fff&bold=true`;
   if (req.files?.avatar?.[0]?.path) {
     const upload = await uploadOnCloudinary(req.files.avatar[0].path);
@@ -90,8 +79,6 @@ const signup = asyncHandler(async (req, res) => {
     new ApiResponse(201, { email }, "OTP sent to your email. Please verify.")
   );
 });
-
-//------------------verify OTP------------------
 
 const verifyOtp = asyncHandler(async (req, res) => {
   const { email, otp } = req.body;
@@ -122,7 +109,6 @@ const verifyOtp = asyncHandler(async (req, res) => {
     throw new ApiError(400, "OTP has expired. Please signup again");
   }
 
-  // mark verified and clear OTP
   user.isVerified = true;
   user.otp = null;
   user.otpExpiry = null;
@@ -132,9 +118,6 @@ const verifyOtp = asyncHandler(async (req, res) => {
     new ApiResponse(200, {}, "Email verified successfully. You can now login.")
   );
 });
-
-
-// ─── Login ─────────────────────────────────────────────────────────────────────
 
 const loginUser = asyncHandler(async (req, res) => {
   const { username, email, password } = req.body;
@@ -150,12 +133,12 @@ const loginUser = asyncHandler(async (req, res) => {
   const userExist = await User.findOne({
     $or: [{ username }, { email }],
   });
-  
 
   if (!userExist) {
     throw new ApiError(404, "User does not exist, please sign up first");
   }
-   if (userExist.isVerified==false) {
+
+  if (userExist.isVerified === false) {
     throw new ApiError(403, "Please verify your email before logging in");
   }
 
@@ -174,7 +157,8 @@ const loginUser = asyncHandler(async (req, res) => {
 
   const options = {
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
   };
 
   return res
@@ -190,18 +174,17 @@ const loginUser = asyncHandler(async (req, res) => {
     );
 });
 
-// ─── Logout ────────────────────────────────────────────────────────────────────
-
 const logoutUser = asyncHandler(async (req, res) => {
   await User.findByIdAndUpdate(
     req.user._id,
     { $unset: { refreshToken: 1 } },
-    { returnDocument: "after"}
+    { returnDocument: "after" }
   );
 
   const options = {
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
   };
 
   return res
@@ -210,8 +193,6 @@ const logoutUser = asyncHandler(async (req, res) => {
     .clearCookie("refreshToken", options)
     .json(new ApiResponse(200, {}, "User logged out successfully"));
 });
-
-// ─── Refresh Access Token ──────────────────────────────────────────────────────
 
 const refreshAccessToken = asyncHandler(async (req, res) => {
   const incomingRefreshToken =
@@ -242,7 +223,8 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
     const options = {
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
     };
 
     return res
@@ -260,8 +242,6 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     throw new ApiError(403, error?.message || "Invalid refresh token");
   }
 });
-
-// ─── Change Password ───────────────────────────────────────────────────────────
 
 const changeCurrentPassword = asyncHandler(async (req, res) => {
   const { oldPassword, newPassword } = req.body;
@@ -286,15 +266,11 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, {}, "Password changed successfully"));
 });
 
-// ─── Get Current User ──────────────────────────────────────────────────────────
-
 const getCurrentUser = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(new ApiResponse(200, req.user, "Current user fetched successfully"));
 });
-
-// ─── Update Account Details ────────────────────────────────────────────────────
 
 const updateAccountDetails = asyncHandler(async (req, res) => {
   const { fullName, username, email } = req.body;
@@ -320,15 +296,13 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, user, "Account details updated successfully"));
 });
 
-// ─── Update Avatar ─────────────────────────────────────────────────────────────
-
 const updateUserAvatar = asyncHandler(async (req, res) => {
   const avatarLocalPath = req.files?.avatar?.[0]?.path;
 
   if (!avatarLocalPath) {
     throw new ApiError(400, "Please upload an avatar file");
   }
-  
+
   const oldUser = await User.findById(req.user?._id);
   const oldAvatarUrl = oldUser?.avatar;
 
@@ -337,15 +311,14 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
   if (!avatar?.url) {
     throw new ApiError(400, "Error while uploading avatar, please try again");
   }
-    if (oldAvatarUrl && oldAvatarUrl.includes("cloudinary.com")) {
+
+  if (oldAvatarUrl && oldAvatarUrl.includes("cloudinary.com")) {
     const publicId = oldAvatarUrl
       .split("/upload/")[1]
       .replace(/\.[^/.]+$/, "")
       .replace(/^v\d+\//, "");
-
     await cloudinary.uploader.destroy(publicId);
   }
-  
 
   const user = await User.findByIdAndUpdate(
     req.user?._id,
@@ -362,16 +335,14 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, user, "Avatar updated successfully"));
 });
 
-//-----------------getAllUsers---------------------------------
-
-const getAllUsers = asyncHandler(async (req, res) =>{
+const getAllUsers = asyncHandler(async (req, res) => {
   const loggedInUserId = req.user._id;
-  const users = await User.find({_id: {$ne: loggedInUserId}})
-  .select("-password -refreshToken")
-  .lean();      // it will return plain js objects instead of mongoose documents, so it will be faster and we don't need mongoose document methods for this
-  //  for each user count unread messages
+  const users = await User.find({ _id: { $ne: loggedInUserId } })
+    .select("-password -refreshToken")
+    .lean();
+
   const { Message } = await import("../models/message.models.js");
-  
+
   const usersWithUnread = await Promise.all(
     users.map(async (user) => {
       const unreadCount = await Message.countDocuments({
@@ -382,12 +353,11 @@ const getAllUsers = asyncHandler(async (req, res) =>{
       return { ...user, unreadCount };
     })
   );
-  return res.status(200).json(new ApiResponse(200, usersWithUnread, "Users fetched successfully"));
 
-})
-// ─── Exports ───────────────────────────────────────────────────────────────────
-
-
+  return res
+    .status(200)
+    .json(new ApiResponse(200, usersWithUnread, "Users fetched successfully"));
+});
 
 export {
   signup,

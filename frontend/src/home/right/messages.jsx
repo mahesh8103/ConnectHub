@@ -19,7 +19,7 @@ function Messages({
   scrollToMessageId,
   onScrollComplete,
 }) {
-  const { selectedUser, authUser } = useAuth(); // ← FIX: authUser also needed for status checks
+  const { selectedUser, authUser } = useAuth();
   const { socket } = useSocket();
   const [messages, setMessages] = useState([]);
   const [skip, setSkip] = useState(0);
@@ -35,10 +35,8 @@ function Messages({
   const onLastMessageRef = useRef(onLastMessage);
   const onMessagesUpdateRef = useRef(onMessagesUpdate);
   const messageRefs = useRef({});
-
-  // ── FIX: store authUser._id in a ref so socket handlers can use it ─────────
-  // Without this, closures inside useEffect capture stale values
   const authUserIdRef = useRef(authUser?._id);
+  const activeRequestRef = useRef(0);
 
   useEffect(() => {
     authUserIdRef.current = authUser?._id;
@@ -66,16 +64,12 @@ function Messages({
     });
   }, []);
 
-  // ── Scroll to specific message (search result click) ──────────────────────
   useEffect(() => {
     if (!scrollToMessageId) return;
-
     const el = messageRefs.current[scrollToMessageId];
-
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "center" });
       setHighlightedId(scrollToMessageId);
-
       setTimeout(() => {
         setHighlightedId(null);
         onScrollComplete?.();
@@ -85,9 +79,10 @@ function Messages({
     }
   }, [scrollToMessageId, onScrollComplete]);
 
-  // ── Fetch messages when selected user changes ─────────────────────────────
   useEffect(() => {
     if (!selectedUser) return;
+
+    const requestId = ++activeRequestRef.current;
 
     const fetchMessages = async () => {
       setIsInitialLoad(true);
@@ -101,8 +96,10 @@ function Messages({
           `http://localhost:5002/messages/${selectedUser._id}?skip=0`,
           { withCredentials: true }
         );
-        const data = res.data.data;
 
+        if (requestId !== activeRequestRef.current) return;
+
+        const data = res.data.data;
         setMessages(data);
         onMessagesUpdateRef.current?.(data);
 
@@ -122,7 +119,9 @@ function Messages({
           error.response?.data?.message || "Failed to fetch messages"
         );
       } finally {
-        setIsInitialLoad(false);
+        if (requestId === activeRequestRef.current) {
+          setIsInitialLoad(false);
+        }
       }
     };
 
@@ -135,30 +134,39 @@ function Messages({
     }
   }, [isInitialLoad, scrollToBottom]);
 
-  // ── Refresh messages after sending ────────────────────────────────────────
   useEffect(() => {
-    if (refreshKey > 0 && selectedUser) {
-      const fetchLatest = async () => {
-        try {
-          const res = await axios.get(
-            `http://localhost:5002/messages/${selectedUser._id}?skip=0`,
-            { withCredentials: true }
-          );
-          const data = res.data.data;
-          setMessages(data);
-          onMessagesUpdateRef.current?.(data);
-          setSkip(0);
-          if (data.length < LIMIT) setHasMore(false);
-          setTimeout(() => scrollToBottom("smooth"), 100);
-        } catch (error) {
-          console.error("Failed to refresh messages", error);
-        }
-      };
-      fetchLatest();
-    }
-  }, [refreshKey, selectedUser, scrollToBottom]);
+    if (!refreshKey || refreshKey === 0 || !selectedUser) return;
 
-  // ── Load older messages on scroll to top ─────────────────────────────────
+    const requestId = ++activeRequestRef.current;
+
+    const fetchLatest = async () => {
+      try {
+        const res = await axios.get(
+          `http://localhost:5002/messages/${selectedUser._id}?skip=0`,
+          { withCredentials: true }
+        );
+
+        if (requestId !== activeRequestRef.current) return;
+
+        const data = res.data.data;
+        setMessages(data);
+        onMessagesUpdateRef.current?.(data);
+
+        if (data.length > 0) {
+          onLastMessageRef.current?.(data[data.length - 1]);
+        }
+
+        setSkip(0);
+        if (data.length < LIMIT) setHasMore(false);
+        setTimeout(() => scrollToBottom("smooth"), 80);
+      } catch (error) {
+        console.error("Failed to refresh messages", error);
+      }
+    };
+
+    fetchLatest();
+  }, [refreshKey]);
+
   const handleScroll = useCallback(async () => {
     const container = containerRef.current;
     if (!container) return;
@@ -205,22 +213,18 @@ function Messages({
     }
   }, [skip, hasMore]);
 
-  // ── Socket: new message ───────────────────────────────────────────────────
   useEffect(() => {
     if (!socket) return;
 
     const handleNewMessage = (newMessage) => {
       const currentSelectedUser = selectedUserRef.current;
-
-      if (newMessage.senderId === currentSelectedUser?._id) {
+      if (String(newMessage.senderId) === String(currentSelectedUser?._id)) {
         setMessages((prev) => {
           const updated = [...prev, newMessage];
           onMessagesUpdateRef.current?.(updated);
           return updated;
         });
-
         onLastMessageRef.current?.(newMessage);
-
         setTimeout(() => scrollToBottom("smooth"), 50);
 
         axios
@@ -237,59 +241,28 @@ function Messages({
     return () => socket.off("newMessage", handleNewMessage);
   }, [socket, scrollToBottom]);
 
-  // ── Socket: delivery and seen status ─────────────────────────────────────
-  // FIX: Previously isMine logic was inverted, causing wrong messages to update
-  //
-  // How socket events work:
-  //   "messagesDelivered" → emitted to SENDER with { to: senderId(receiver's ID) }
-  //     → We need to find OUR messages sent TO that person
-  //   "messagesSeen"      → emitted to SENDER with { by: receiverId (who saw) }
-  //     → We need to find OUR messages that THEY saw
-  //
-  // Correct check: msg.senderId === MY id (authUserIdRef)
-  // This finds messages I sent (not messages I received)
   useEffect(() => {
     if (!socket) return;
 
-    const handleDelivered = ({ to }) => {
-      // "to" = the receiver's ID (person we're chatting with)
-      // We want to update messages where:
-      //   - I am the sender (senderId === my ID)
-      //   - The receiver is "to"
-      //   - Status was "sent" → now "delivered"
+    const handleDelivered = ({ messageIds = [] }) => {
+      if (!messageIds.length) return;
       setMessages((prev) =>
-        prev.map((msg) => {
-          const iMySentMessage =
-            msg.senderId?.toString() === authUserIdRef.current?.toString();
-          const sentToThisPerson =
-            msg.receiverId?.toString() === to?.toString();
-
-          if (iMySentMessage && sentToThisPerson && msg.status === "sent") {
-            return { ...msg, status: "delivered" };
-          }
-          return msg;
-        })
+        prev.map((msg) =>
+          messageIds.includes(String(msg._id))
+            ? { ...msg, status: "delivered" }
+            : msg
+        )
       );
     };
 
-    const handleSeen = ({ by }) => {
-      // "by" = the person who saw our messages (receiver)
-      // We want to update messages where:
-      //   - I am the sender (senderId === my ID)
-      //   - They are the receiver ("by" = receiver's ID)
-      //   - Update ALL to "seen" (overwrite delivered too)
+    const handleSeen = ({ messageIds = [] }) => {
+      if (!messageIds.length) return;
       setMessages((prev) =>
-        prev.map((msg) => {
-          const iMySentMessage =
-            msg.senderId?.toString() === authUserIdRef.current?.toString();
-          const seenByThisPerson =
-            msg.receiverId?.toString() === by?.toString();
-
-          if (iMySentMessage && seenByThisPerson) {
-            return { ...msg, status: "seen" };
-          }
-          return msg;
-        })
+        prev.map((msg) =>
+          messageIds.includes(String(msg._id))
+            ? { ...msg, status: "seen" }
+            : msg
+        )
       );
     };
 
@@ -302,7 +275,6 @@ function Messages({
     };
   }, [socket]);
 
-  // ── Socket: delete and react ──────────────────────────────────────────────
   useEffect(() => {
     if (!socket) return;
 
@@ -333,7 +305,6 @@ function Messages({
     };
   }, [socket]);
 
-  // ── Local handlers passed down to Message component ───────────────────────
   const handleDelete = useCallback((messageId) => {
     setMessages((prev) =>
       prev.map((msg) =>
@@ -352,7 +323,6 @@ function Messages({
     );
   }, []);
 
-  // ── Date helpers ──────────────────────────────────────────────────────────
   const formatDateLabel = (date) => {
     const today = new Date();
     const yesterday = new Date();

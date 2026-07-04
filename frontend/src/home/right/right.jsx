@@ -24,7 +24,7 @@ function Right({ onBack }) {
   const [scrollToMessageId, setScrollToMessageId] = useState(null);
 
   const handleMessageSent = useCallback(() => {
-    setRefreshKey(prev => prev + 1);
+    setRefreshKey((prev) => prev + 1);
   }, []);
 
   const handleLastMessage = useCallback((message) => {
@@ -40,7 +40,7 @@ function Right({ onBack }) {
   }, []);
 
   const handleSummarize = useCallback(() => {
-    setTriggerSummarize(prev => prev + 1);
+    setTriggerSummarize((prev) => prev + 1);
   }, []);
 
   const handleSearch = useCallback(async (query) => {
@@ -53,7 +53,7 @@ function Right({ onBack }) {
         { withCredentials: true }
       );
       setSearchResults(res.data.data || []);
-    } catch (error) {
+    } catch {
       setSearchResults([]);
     } finally {
       setIsSearching(false);
@@ -74,15 +74,15 @@ function Right({ onBack }) {
 
   if (!selectedUser) {
     return (
-      <div className={`flex-1 h-screen flex flex-col items-center justify-center
-        transition-colors duration-300
-        ${isDark ? 'bg-[#0f0f1a]' : 'bg-[#f0f4ff]'}`}>
-        <h2 className={`text-lg font-semibold
-          ${isDark ? 'text-white' : 'text-gray-800'}`}>
+      <div
+        className={`flex-1 h-screen flex flex-col items-center justify-center
+          transition-colors duration-300
+          ${isDark ? 'bg-[#0f0f1a]' : 'bg-[#f0f4ff]'}`}
+      >
+        <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-800'}`}>
           Welcome to ConnectHub
         </h2>
-        <p className={`text-sm mt-1
-          ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+        <p className={`text-sm mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
           Select someone to start chatting
         </p>
       </div>
@@ -90,9 +90,10 @@ function Right({ onBack }) {
   }
 
   return (
-    <div className={`flex-1 h-screen flex flex-col transition-colors duration-300 relative
-      ${isDark ? 'bg-[#0f0f1a]' : 'bg-[#f0f4ff]'}`}>
-
+    <div
+      className={`flex-1 h-screen flex flex-col transition-colors duration-300 relative
+        ${isDark ? 'bg-[#0f0f1a]' : 'bg-[#f0f4ff]'}`}
+    >
       <div className="flex items-center gap-2 md:hidden px-4 pt-3">
         <button
           onClick={onBack}
@@ -107,9 +108,8 @@ function Right({ onBack }) {
         onSearch={handleSearch}
         onClearSearch={handleClearSearch}
         isSearching={isSearching}
-        onSummarize={handleSummarize}      
+        onSummarize={handleSummarize}
       />
-
 
       {searchActive && (
         <SearchResults
@@ -139,8 +139,10 @@ function Right({ onBack }) {
         otherUserName={selectedUser?.fullName}
       />
 
-      <div className={`px-4 py-4 border-t transition-colors duration-300
-        ${isDark ? 'border-[#1e1e3a] bg-[#0f0f1a]' : 'border-[#c7d2fe] bg-[#f0f4ff]'}`}>
+      <div
+        className={`px-4 py-4 border-t transition-colors duration-300
+          ${isDark ? 'border-[#1e1e3a] bg-[#0f0f1a]' : 'border-[#c7d2fe] bg-[#f0f4ff]'}`}
+      >
         <Type
           onMessageSent={handleMessageSent}
           suggestionText={suggestionText}

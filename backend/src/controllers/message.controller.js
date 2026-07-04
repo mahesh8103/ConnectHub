@@ -22,14 +22,27 @@ const getMessages = asyncHandler(async (req, res) => {
     .skip(skip)
     .lean();
 
-  await Message.updateMany(
-    { senderId: receiverId, receiverId: senderId, status: "sent" },
-    { status: "delivered" }
-  );
+  const undeliveredMessages = await Message.find({
+    senderId: receiverId,
+    receiverId: senderId,
+    status: "sent",
+  }).select("_id");
 
-  const senderSocketId = getReceiverSocketId(receiverId);
-  if (senderSocketId) {
-    io.to(senderSocketId).emit("messagesDelivered", { to: senderId });
+  const deliveredIds = undeliveredMessages.map((m) => m._id);
+
+  if (deliveredIds.length > 0) {
+    await Message.updateMany(
+      { _id: { $in: deliveredIds } },
+      { $set: { status: "delivered" } }
+    );
+
+    const senderSocketId = getReceiverSocketId(String(receiverId));
+    if (senderSocketId) {
+      io.to(senderSocketId).emit("messagesDelivered", {
+        to: String(senderId),
+        messageIds: deliveredIds.map(String),
+      });
+    }
   }
 
   return res
@@ -45,7 +58,9 @@ const sendMessage = asyncHandler(async (req, res) => {
   let imageUrl = "";
   if (req.file) {
     const uploaded = await uploadOnCloudinary(req.file.path);
-    if (uploaded?.url) { imageUrl = uploaded.url; }
+    if (uploaded?.url) {
+      imageUrl = uploaded.url;
+    }
   }
 
   if (!message && !imageUrl) {
@@ -60,11 +75,20 @@ const sendMessage = asyncHandler(async (req, res) => {
     status: "sent",
   });
 
-  const receiverSocketId = getReceiverSocketId(receiverId);
+  const receiverSocketId = getReceiverSocketId(String(receiverId));
+  const senderSocketId = getReceiverSocketId(String(senderId));
+
   if (receiverSocketId) {
-    await Message.findByIdAndUpdate(newMessage._id, { status: "delivered" });
+    await Message.findByIdAndUpdate(newMessage._id, { $set: { status: "delivered" } });
     newMessage.status = "delivered";
     io.to(receiverSocketId).emit("newMessage", newMessage);
+
+    if (senderSocketId) {
+      io.to(senderSocketId).emit("messagesDelivered", {
+        to: String(receiverId),
+        messageIds: [String(newMessage._id)],
+      });
+    }
   }
 
   return res
@@ -72,26 +96,31 @@ const sendMessage = asyncHandler(async (req, res) => {
     .json(new ApiResponse(201, newMessage, "Message sent successfully"));
 });
 
-// ── FIX: markMessagesSeen ─────────────────────────────────────────────────────
-// BUG WAS: status: "delivered" only → messages that arrived while sender was
-// offline stay "sent" forever and never reach "seen"
-// FIX: mark BOTH "sent" and "delivered" messages as "seen"
 const markMessagesSeen = asyncHandler(async (req, res) => {
   const { id: senderId } = req.params;
   const receiverId = req.user._id;
 
-  await Message.updateMany(
-    {
-      senderId,
-      receiverId,
-      status: { $in: ["sent", "delivered"] }, // ← FIX: was just "delivered"
-    },
-    { status: "seen" }
-  );
+  const unseenMessages = await Message.find({
+    senderId,
+    receiverId,
+    status: { $in: ["sent", "delivered"] },
+  }).select("_id");
 
-  const senderSocketId = getReceiverSocketId(senderId);
-  if (senderSocketId) {
-    io.to(senderSocketId).emit("messagesSeen", { by: receiverId });
+  const messageIds = unseenMessages.map((m) => m._id);
+
+  if (messageIds.length > 0) {
+    await Message.updateMany(
+      { _id: { $in: messageIds } },
+      { $set: { status: "seen" } }
+    );
+
+    const senderSocketId = getReceiverSocketId(String(senderId));
+    if (senderSocketId) {
+      io.to(senderSocketId).emit("messagesSeen", {
+        by: String(receiverId),
+        messageIds: messageIds.map(String),
+      });
+    }
   }
 
   return res
@@ -99,7 +128,6 @@ const markMessagesSeen = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, {}, "Messages marked as seen successfully"));
 });
 
-// ── searchMessages ────────────────────────────────────────────────────────────
 const searchMessages = asyncHandler(async (req, res) => {
   const { id: otherUserId } = req.params;
   const myId = req.user._id;
@@ -131,7 +159,6 @@ const searchMessages = asyncHandler(async (req, res) => {
     );
 });
 
-// ── deleteMessage ─────────────────────────────────────────────────────────────
 const deleteMessage = asyncHandler(async (req, res) => {
   const { messageId } = req.params;
   const userId = req.user._id;
@@ -151,7 +178,7 @@ const deleteMessage = asyncHandler(async (req, res) => {
   message.image = "";
   await message.save();
 
-  const receiverSocketId = getReceiverSocketId(message.receiverId);
+  const receiverSocketId = getReceiverSocketId(String(message.receiverId));
   if (receiverSocketId) {
     io.to(receiverSocketId).emit("messageDeleted", { messageId });
   }
@@ -161,7 +188,6 @@ const deleteMessage = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, { messageId }, "Message deleted"));
 });
 
-// ── reactToMessage ────────────────────────────────────────────────────────────
 const reactToMessage = asyncHandler(async (req, res) => {
   const { messageId } = req.params;
   const { emoji } = req.body;
@@ -200,7 +226,7 @@ const reactToMessage = asyncHandler(async (req, res) => {
       ? message.receiverId
       : message.senderId;
 
-  const otherSocketId = getReceiverSocketId(otherUserId);
+  const otherSocketId = getReceiverSocketId(String(otherUserId));
   if (otherSocketId) {
     io.to(otherSocketId).emit("messageReacted", {
       messageId,

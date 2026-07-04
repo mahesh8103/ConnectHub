@@ -89,16 +89,13 @@ function useTypewriter(fullText, isStreaming) {
   const indexRef = useRef(0);
 
   useEffect(() => {
-    // Clear any running timer first
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
 
-    // Not streaming — just show full text immediately via ref trick
     if (!isStreaming || !fullText) {
       indexRef.current = 0;
-      // Schedule the reset outside the synchronous effect body
       timeoutRef.current = setTimeout(() => {
         setDisplayed(fullText || "");
       }, 0);
@@ -124,7 +121,6 @@ function useTypewriter(fullText, isStreaming) {
       }
     };
 
-    // First word is also scheduled, never called synchronously
     timeoutRef.current = setTimeout(tick, 40);
 
     return () => {
